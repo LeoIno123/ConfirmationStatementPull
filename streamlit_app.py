@@ -72,12 +72,12 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     if statement_date_match:
         statement_date = statement_date_match.group(1)
 
-    # Add company details to the top of the CSV
+    # Add headers and top-level details
     csv_data.append(["Company Legal Name", legal_name])
     csv_data.append(["Company Number", company_number])
     csv_data.append(["Statement Date", statement_date])
     csv_data.append([])  # Blank row
-    csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])  # Only one header row
+    csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])  # Data headers
 
     # Extract shareholding details
     for i, line in enumerate(lines):
@@ -114,39 +114,37 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     return csv_buffer, statement_date
 
 
+
 def consolidate_csvs(csv_buffers):
     """Consolidate multiple CSV buffers horizontally as distinct tables."""
     consolidated_rows = []
-    max_rows_per_csv = []
+    max_table_length = max(len(list(csv.reader(buf))) for buf in csv_buffers)
 
-    # Parse each CSV buffer and collect rows
     csv_tables = []
     for buf in csv_buffers:
         buf.seek(0)
         rows = list(csv.reader(buf))
         csv_tables.append(rows)
-        max_rows_per_csv.append(len(rows))
 
-    # Determine the maximum number of rows across all CSVs
-    max_rows = max(max_rows_per_csv)
-
-    # Create consolidated rows
-    for i in range(max_rows):
+    # Consolidate each row across tables
+    for row_idx in range(max_table_length):
         consolidated_row = []
         for table in csv_tables:
-            if i < len(table):  # If the current table has this row
-                consolidated_row.extend(table[i])  # Add the row
+            if row_idx < len(table):  # If the row exists in this table
+                consolidated_row.extend(table[row_idx])
             else:
-                consolidated_row.extend([""] * len(table[4]))  # Add empty columns if no row exists
-            consolidated_row.append("")  # Column break
+                # If this row does not exist in the table, add empty columns equivalent to the length of a typical data row
+                consolidated_row.extend([""] * len(table[4]))
+            consolidated_row.append("")  # Add one blank column as a separator
         consolidated_rows.append(consolidated_row)
 
-    # Write consolidated rows to a new buffer
+    # Write consolidated rows into a single CSV buffer
     consolidated_buffer = StringIO()
     writer = csv.writer(consolidated_buffer)
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 
 
