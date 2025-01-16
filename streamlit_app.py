@@ -10,6 +10,7 @@ import re
 API_BASE_URL = "https://api.company-information.service.gov.uk"
 PDF_DOWNLOAD_URL = "https://find-and-update.company-information.service.gov.uk"
 
+
 def get_company_number(legal_name, api_key):
     """Fetch the company number using the legal name."""
     url = f"{API_BASE_URL}/search/companies?q={legal_name}"
@@ -20,6 +21,7 @@ def get_company_number(legal_name, api_key):
         return None
     data = response.json()
     return data.get("items", [{}])[0].get("company_number")
+
 
 def get_confirmation_statement_transaction_ids(company_number, api_key):
     """Fetch the transaction IDs for the last three confirmation statements."""
@@ -37,6 +39,7 @@ def get_confirmation_statement_transaction_ids(company_number, api_key):
     ]
     return transaction_ids[:3]
 
+
 def download_pdf(company_number, transaction_id):
     """Download the confirmation statement PDF."""
     url = f"{PDF_DOWNLOAD_URL}/company/{company_number}/filing-history/{transaction_id}/document?format=pdf&download=0"
@@ -46,18 +49,20 @@ def download_pdf(company_number, transaction_id):
     else:
         return None
 
+
 def extract_text_from_pdf(pdf_content):
     """Extract text from a PDF file."""
     pdf_reader = PdfReader(BytesIO(pdf_content))
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
+
 def process_text_to_csv(text_contents, legal_name):
     """Process text content from multiple PDFs to generate a consolidated CSV."""
     csv_data = [
         [
-            "Company Legal Name", "Company Number", "Statement Date",
-            "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"
+            "Company Name", "Company Number", "Statement Date",
+            "Shareholding Number", "Amount of Shares", "Type of Shares", "Shareholder Name"
         ]
     ]
 
@@ -109,6 +114,7 @@ def process_text_to_csv(text_contents, legal_name):
     csv_buffer.seek(0)
     return csv_buffer
 
+
 def main():
     st.title("Company Confirmation Statement Downloader")
 
@@ -132,45 +138,49 @@ def main():
             st.error("No confirmation statements found.")
             return
 
-        st.info("Downloading confirmation statement PDFs...")
-        pdf_contents = []
         text_contents = []
+        pdf_contents = []
+
+        st.info("Downloading confirmation statement PDFs...")
         for transaction_id in transaction_ids:
             pdf_content = download_pdf(company_number, transaction_id)
             if pdf_content:
                 pdf_contents.append(pdf_content)
                 text_contents.append(extract_text_from_pdf(pdf_content))
 
-        if not pdf_contents:
+        if not text_contents:
             st.error("Failed to download any PDFs.")
             return
 
         st.info("Generating consolidated CSV...")
         csv_buffer = process_text_to_csv(text_contents, legal_name)
 
-        # Individual download buttons for each PDF and TXT
-        for idx, (pdf_content, text_content) in enumerate(zip(pdf_contents, text_contents)):
+        # Individual download buttons for PDFs
+        for idx, pdf_content in enumerate(pdf_contents):
             st.download_button(
-                label=f"Download PDF {idx + 1}",
+                label=f"Download Statement {idx + 1} PDF",
                 data=pdf_content,
-                file_name=f"{legal_name}_confirmation_statement_{idx + 1}.pdf",
+                file_name=f"{legal_name}_statement_{idx + 1}.pdf",
                 mime="application/pdf"
             )
 
+        # Individual download buttons for TXTs
+        for idx, text_content in enumerate(text_contents):
             st.download_button(
-                label=f"Download TXT {idx + 1}",
+                label=f"Download Statement {idx + 1} TXT",
                 data=text_content,
-                file_name=f"{legal_name}_confirmation_statement_{idx + 1}.txt",
+                file_name=f"{legal_name}_statement_{idx + 1}.txt",
                 mime="text/plain"
             )
 
-        # Download button for consolidated CSV
+        # Consolidated CSV download button
         st.download_button(
             label=f"Download Consolidated CSV for {legal_name}",
             data=csv_buffer.getvalue(),
             file_name=f"{legal_name}_confirmation_statements.csv",
             mime="text/csv"
         )
+
 
 if __name__ == "__main__":
     main()
