@@ -136,11 +136,11 @@ def consolidate_csvs(csv_buffers):
                 row = table[row_idx]
                 # Align top-level headers above the `Shareholding #` column
                 if row_idx == 0:  # "Company Legal Name"
-                    consolidated_row.extend([""] + row)
+                    consolidated_row.extend(row[1:])  # Shift 2 columns left
                 elif row_idx == 1:  # "Company Number"
-                    consolidated_row.extend([""] + row)
+                    consolidated_row.extend(row[1:])  # Shift 2 columns left
                 elif row_idx == 2:  # "Statement Date"
-                    consolidated_row.extend([""] + row)
+                    consolidated_row.extend(row[1:])  # Shift 2 columns left
                 elif row_idx >= 4:  # Data rows start after header rows
                     consolidated_row.extend(row)
                 else:  # Blank rows or unused rows
@@ -157,6 +157,7 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 
 
