@@ -73,9 +73,9 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
         statement_date = statement_date_match.group(1)
 
     # Add headers and top-level details
-    csv_data.append(["Company Legal Name", legal_name])
-    csv_data.append(["Company Number", company_number])
-    csv_data.append(["Statement Date", statement_date])
+    csv_data.append(["", "", "", "Company Legal Name", legal_name])
+    csv_data.append(["", "", "", "Company Number", company_number])
+    csv_data.append(["", "", "", "Statement Date", statement_date])
     csv_data.append([])  # Blank row
     csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])  # Data headers
 
@@ -115,8 +115,9 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
 
 
 
+
 def consolidate_csvs(csv_buffers):
-    """Consolidate multiple CSV buffers horizontally as distinct tables."""
+    """Consolidate multiple CSV buffers horizontally as distinct tables with aligned headers."""
     consolidated_rows = []
     max_table_length = max(len(list(csv.reader(buf))) for buf in csv_buffers)
 
@@ -126,16 +127,27 @@ def consolidate_csvs(csv_buffers):
         rows = list(csv.reader(buf))
         csv_tables.append(rows)
 
-    # Consolidate each row across tables
+    # Prepare consolidated table row by row
     for row_idx in range(max_table_length):
         consolidated_row = []
         for table in csv_tables:
             if row_idx < len(table):  # If the row exists in this table
-                consolidated_row.extend(table[row_idx])
+                row = table[row_idx]
+                # Align top-level headers above the `Shareholding #` column
+                if row_idx == 0:  # "Company Legal Name"
+                    consolidated_row.extend([""] * 4 + row)
+                elif row_idx == 1:  # "Company Number"
+                    consolidated_row.extend([""] * 4 + row)
+                elif row_idx == 2:  # "Statement Date"
+                    consolidated_row.extend([""] * 4 + row)
+                elif row_idx >= 4:  # Data rows start after header rows
+                    consolidated_row.extend(row)
+                else:  # Blank rows or unused rows
+                    consolidated_row.extend([""] * len(table[4]))
             else:
-                # If this row does not exist in the table, add empty columns equivalent to the length of a typical data row
+                # If this row does not exist in the table, add empty cells equivalent to the length of a typical data row
                 consolidated_row.extend([""] * len(table[4]))
-            consolidated_row.append("")  # Add one blank column as a separator
+            consolidated_row.append("")  # Column break
         consolidated_rows.append(consolidated_row)
 
     # Write consolidated rows into a single CSV buffer
@@ -144,6 +156,7 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 
 
