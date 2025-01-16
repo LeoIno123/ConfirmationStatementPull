@@ -120,7 +120,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
 def consolidate_csvs(csv_buffers):
     """Consolidate multiple CSV buffers with 3-column gaps for headers and 1-column gaps for data tables."""
     consolidated_rows = []
-    max_data_rows = max(len(list(csv.reader(buf))[5:]) for buf in csv_buffers)  # Count rows starting from data
+    max_data_rows = max(len(list(csv.reader(buf))[5:]) for buf in csv_buffers if len(list(csv.reader(buf))) > 5)  # Handle empty data gracefully
 
     csv_tables = []
     for buf in csv_buffers:
@@ -135,7 +135,7 @@ def consolidate_csvs(csv_buffers):
             if row_idx < len(table):
                 consolidated_row.extend(table[row_idx])
             else:
-                consolidated_row.extend([""] * len(table[0]))  # Match header width
+                consolidated_row.extend([""] * len(table[0]) if len(table) > 0 else [""] * 6)  # Match header width
             consolidated_row.extend([""] * 3)  # 3-column gap for headers
         consolidated_rows.append(consolidated_row)
 
@@ -146,11 +146,11 @@ def consolidate_csvs(csv_buffers):
     for data_row_idx in range(max_data_rows):
         consolidated_row = []
         for table in csv_tables:
-            data_rows = table[5:]  # Data starts from row 5
+            data_rows = table[5:] if len(table) > 5 else []  # Data starts from row 5, handle empty data
             if data_row_idx < len(data_rows):
                 consolidated_row.extend(data_rows[data_row_idx])
             else:
-                consolidated_row.extend([""] * len(data_rows[0]))  # Match data width
+                consolidated_row.extend([""] * len(data_rows[0]) if len(data_rows) > 0 else [""] * 4)  # Match data width
             consolidated_row.extend([""])  # 1-column gap for data
         consolidated_rows.append(consolidated_row)
 
@@ -160,10 +160,6 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
-
-
-
-
 
 
 
