@@ -55,39 +55,49 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def process_text_to_csv(text_content, statement_number):
-    """Process text content to generate a CSV for a single statement."""
+def format_individual_csv(company_name, company_number, statement_date, shareholder_data):
+    """Format an individual CSV file."""
     csv_data = [
-        [
-            f"Statement {statement_number} - Company Legal Name", 
-            f"Statement {statement_number} - Company Number", 
-            f"Statement {statement_number} - Statement Date",
-            f"Statement {statement_number} - Shareholding #", 
-            f"Statement {statement_number} - Amount of Shares", 
-            f"Statement {statement_number} - Type of Shares", 
-            f"Statement {statement_number} - Shareholder Name"
-        ]
+        ["Company Legal Name", company_name],
+        ["Company Number", company_number],
+        ["Statement Date", statement_date],
+        [],
+        ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"],
     ]
+    csv_data.extend(shareholder_data)
+    csv_buffer = StringIO()
+    writer = csv.writer(csv_buffer)
+    writer.writerows(csv_data)
+    csv_buffer.seek(0)
+    return csv_buffer
 
-    if not text_content.strip():
-        return StringIO()  # Return an empty CSV if no text content
+def consolidate_csvs(csv_buffers):
+    """Consolidate multiple CSV buffers horizontally with a column break."""
+    consolidated_rows = []
+    max_rows = max(len(list(csv.reader(buf))) for buf in csv_buffers)
 
+    for i in range(max_rows):
+        row = []
+        for buf in csv_buffers:
+            buf.seek(0)
+            rows = list(csv.reader(buf))
+            row.extend(rows[i] if i < len(rows) else [""] * len(rows[0]))
+            row.append("")  # Column break
+        consolidated_rows.append(row)
+
+    consolidated_buffer = StringIO()
+    writer = csv.writer(consolidated_buffer)
+    writer.writerows(consolidated_rows)
+    consolidated_buffer.seek(0)
+    return consolidated_buffer
+
+def process_text_to_csv(text_content, company_name, company_number, statement_date):
+    """Process text content into an individual CSV format."""
     lines = text_content.split("\n")
-    company_name, company_number, statement_date = "", "", ""
+    shareholder_data = []
 
     for i, line in enumerate(lines):
         line = line.strip()
-
-        if line.startswith("Company Name:"):
-            company_name = line.split(":")[1].strip()
-
-        if line.startswith("Company Number:"):
-            company_number = line.split(":")[1].strip()
-            next_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
-            if next_line.startswith("Confirmation"):
-                date_match = next_line.split()[-1]
-                statement_date = date_match if "/" in date_match else ""
-
         if line.startswith("Shareholding"):
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
@@ -105,16 +115,11 @@ def process_text_to_csv(text_content, statement_number):
                     break
                 j += 1
 
-            csv_data.append([
-                company_name, company_number, statement_date,
+            shareholder_data.append([
                 shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
             ])
 
-    csv_buffer = StringIO()
-    writer = csv.writer(csv_buffer)
-    writer.writerows(csv_data)
-    csv_buffer.seek(0)
-    return csv_buffer
+    return format_individual_csv(company_name, company_number, statement_date, shareholder_data)
 
 def main():
     st.title("Company Confirmation Statement Downloader")
@@ -150,50 +155,29 @@ def main():
         st.session_state.pdf_files = []
         st.session_state.text_files = []
         st.session_state.csv_files = []
-        consolidated_data = []
+        csv_buffers = []
 
         for idx, transaction_id in enumerate(transaction_ids):
             pdf_content = download_pdf(company_number, transaction_id)
-            pdf_name = f"{legal_name}_statement_{idx + 1}.pdf"
-            txt_name = f"{legal_name}_statement_{idx + 1}.txt"
-            csv_name = f"{legal_name}_statement_{idx + 1}.csv"
+            if not pdf_content:
+                continue
 
-            if pdf_content:
-                st.session_state.pdf_files.append((pdf_name, pdf_content))
-                text_content = extract_text_from_pdf(pdf_content)
-                st.session_state.text_files.append((txt_name, text_content))
-                csv_buffer = process_text_to_csv(text_content, idx + 1)
-                st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
-                consolidated_data.append(csv_buffer.getvalue())
+            st.session_state.pdf_files.append((f"{legal_name}_statement_{idx + 1}.pdf", pdf_content))
+            text_content = extract_text_from_pdf(pdf_content)
+            st.session_state.text_files.append((f"{legal_name}_statement_{idx + 1}.txt", text_content))
+            csv_buffer = process_text_to_csv(text_content, legal_name, company_number, f"Statement Date {idx + 1}")
+            st.session_state.csv_files.append((f"{legal_name}_statement_{idx + 1}.csv", csv_buffer.getvalue()))
+            csv_buffers.append(csv_buffer)
 
-        st.session_state.consolidated_csv = "\n".join(consolidated_data)
+        st.session_state.consolidated_csv = consolidate_csvs(csv_buffers).getvalue()
 
+    # Add download buttons
     for pdf_name, pdf_content in st.session_state.pdf_files:
-        st.download_button(
-            label=f"Download {pdf_name}",
-            data=pdf_content,
-            file_name=pdf_name,
-            mime="application/pdf",
-            on_click=lambda: st.info("Nothing to download!") if not pdf_content else None
-        )
-
+        st.download_button(label=f"Download {pdf_name}", data=pdf_content, file_name=pdf_name, mime="application/pdf")
     for txt_name, txt_content in st.session_state.text_files:
-        st.download_button(
-            label=f"Download {txt_name}",
-            data=txt_content,
-            file_name=txt_name,
-            mime="text/plain",
-            on_click=lambda: st.info("Nothing to download!") if not txt_content else None
-        )
-
+        st.download_button(label=f"Download {txt_name}", data=txt_content, file_name=txt_name, mime="text/plain")
     for csv_name, csv_content in st.session_state.csv_files:
-        st.download_button(
-            label=f"Download {csv_name}",
-            data=csv_content,
-            file_name=csv_name,
-            mime="text/csv",
-            on_click=lambda: st.info("Nothing to download!") if not csv_content else None
-        )
+        st.download_button(label=f"Download {csv_name}", data=csv_content, file_name=csv_name, mime="text/csv")
 
     if st.session_state.consolidated_csv:
         st.download_button(
