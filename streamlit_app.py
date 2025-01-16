@@ -22,7 +22,7 @@ def get_company_number(legal_name, api_key):
     return data.get("items", [{}])[0].get("company_number")
 
 def get_confirmation_statement_transaction_ids(company_number, api_key):
-    """Fetch the transaction IDs for the last three confirmation statements (CS01)."""
+    """Fetch the transaction IDs for the last three confirmation statements."""
     url = f"{API_BASE_URL}/company/{company_number}/filing-history"
     headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
     response = requests.get(url, headers=headers)
@@ -33,16 +33,15 @@ def get_confirmation_statement_transaction_ids(company_number, api_key):
     
     data = response.json()
     items = data.get("items", [])
-    
-    # Filter for confirmation statement documents (CS01)
+    st.write("Filing history items:", items)  # Debugging: Display all items
+
     transaction_ids = [
-        item["transaction_id"]
+        item.get("transaction_id")
         for item in items
-        if item.get("type") == "CS01"
+        if item.get("description") and "confirmation statement" in item["description"].lower()
     ]
-    
-    # Return up to the last 3 transaction IDs
-    return transaction_ids[:3]
+    st.write("Transaction IDs found:", transaction_ids)  # Debugging
+    return transaction_ids[:3]  # Limit to 3 IDs
 
 def download_pdf(company_number, transaction_id):
     """Download the confirmation statement PDF."""
@@ -151,8 +150,6 @@ def main():
             st.error("No confirmation statements found.")
             return
 
-        st.info(f"Transaction IDs pulled: {transaction_ids}")
-        
         pdf_files = []
         text_files = []
         text_contents = []
@@ -172,6 +169,9 @@ def main():
         st.info("Generating consolidated CSV...")
         csv_buffer = process_text_to_csv(text_contents, legal_name)
         st.session_state.csv_file = csv_buffer.getvalue()
+
+    # Display transaction IDs for debugging
+    st.write("Transaction IDs:", st.session_state.transaction_ids)
 
     # Display buttons for downloads
     for pdf_name, pdf_content in st.session_state.pdf_files:
