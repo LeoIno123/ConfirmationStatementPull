@@ -119,17 +119,23 @@ def consolidate_csvs(csv_buffers):
     max_rows = 0
 
     # Collect all headers and determine max rows
-    for idx, buf in enumerate(csv_buffers):
+    for buf in csv_buffers:
         buf.seek(0)
         rows = list(csv.reader(buf))
+        if len(rows) >= 5:  # Ensure there are at least 5 rows for valid CSV content
+            headers.append(rows[:5])
+        else:
+            headers.append([[""] * 4] * 5)  # Add empty rows for invalid or short CSVs
         max_rows = max(max_rows, len(rows) - 5)  # Ignore first 5 rows (header rows)
-        headers.append(rows[:5])
 
     # Consolidate headers horizontally
     for i in range(5):  # First 5 rows are headers
         row = []
         for header in headers:
-            row.extend(header[i])
+            if i < len(header):
+                row.extend(header[i])
+            else:
+                row.extend([""] * len(header[0]))  # Empty cells for missing rows
             row.append("")  # Add empty column for spacing
         consolidated_rows.append(row)
 
@@ -142,7 +148,7 @@ def consolidate_csvs(csv_buffers):
             if i + 5 < len(rows):  # Start at the 6th row
                 row.extend(rows[i + 5])
             else:
-                row.extend([""] * len(rows[5]))  # Add empty cells if no more rows
+                row.extend([""] * len(rows[5]) if len(rows) > 5 else [""] * 4)  # Add empty cells if no more rows
             row.append("")  # Add empty column for spacing
         consolidated_rows.append(row)
 
@@ -152,6 +158,7 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 def main():
     st.title("Company Confirmation Statement Downloader")
