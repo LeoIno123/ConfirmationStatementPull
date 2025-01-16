@@ -167,7 +167,7 @@ def main():
             )
 
         st.download_button(
-            label=f"Download Consolidated CSV for {legal_name}",
+            label=f"Download the 3 Consolidated CSV for {legal_name}",
             data=csv_buffer.getvalue(),
             file_name=f"{legal_name}_confirmation_statements.csv",
             mime="text/csv"
