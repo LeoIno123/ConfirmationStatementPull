@@ -33,14 +33,11 @@ def get_confirmation_statement_transaction_ids(company_number, api_key):
     
     data = response.json()
     items = data.get("items", [])
-    st.write("Filing history items:", items)  # Debugging: Display all items
-
     transaction_ids = [
         item.get("transaction_id")
         for item in items
         if item.get("type") and item["type"].lower() == "cs01"
     ]
-    st.write("Transaction IDs found:", transaction_ids)  # Debugging
     return transaction_ids[:3]  # Limit to the last 3 CS01 IDs
 
 def download_pdf(company_number, transaction_id):
@@ -122,6 +119,16 @@ def process_text_to_csv(text_content, statement_number):
 def main():
     st.title("Company Confirmation Statement Downloader")
 
+    # Initialize session state
+    if "pdf_files" not in st.session_state:
+        st.session_state.pdf_files = []
+    if "text_files" not in st.session_state:
+        st.session_state.text_files = []
+    if "csv_files" not in st.session_state:
+        st.session_state.csv_files = []
+    if "consolidated_csv" not in st.session_state:
+        st.session_state.consolidated_csv = ""
+
     legal_name = st.text_input("Enter Company Legal Name:", "")
 
     if st.button("Process"):
@@ -130,24 +137,21 @@ def main():
             return
 
         api_key = st.secrets["API"]["key"]
-        st.info(f"Fetching company number for: {legal_name}")
         company_number = get_company_number(legal_name, api_key)
         if not company_number:
             st.error("Company not found.")
             return
 
-        st.info("Fetching confirmation statement transaction IDs...")
         transaction_ids = get_confirmation_statement_transaction_ids(company_number, api_key)
         if not transaction_ids:
             st.error("No confirmation statements found.")
             return
 
-        pdf_files = []
-        text_files = []
-        csv_files = []
+        st.session_state.pdf_files = []
+        st.session_state.text_files = []
+        st.session_state.csv_files = []
         consolidated_data = []
 
-        st.info("Downloading confirmation statement PDFs...")
         for idx, transaction_id in enumerate(transaction_ids):
             pdf_content = download_pdf(company_number, transaction_id)
             pdf_name = f"{legal_name}_statement_{idx + 1}.pdf"
@@ -155,44 +159,46 @@ def main():
             csv_name = f"{legal_name}_statement_{idx + 1}.csv"
 
             if pdf_content:
-                pdf_files.append((pdf_name, pdf_content))
+                st.session_state.pdf_files.append((pdf_name, pdf_content))
                 text_content = extract_text_from_pdf(pdf_content)
-                text_files.append((txt_name, text_content))
+                st.session_state.text_files.append((txt_name, text_content))
                 csv_buffer = process_text_to_csv(text_content, idx + 1)
-                csv_files.append((csv_name, csv_buffer.getvalue()))
+                st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
                 consolidated_data.append(csv_buffer.getvalue())
 
-        # Combine CSVs
-        consolidated_csv = "\n".join(consolidated_data)
+        st.session_state.consolidated_csv = "\n".join(consolidated_data)
 
-        # Display buttons
-        for pdf_name, pdf_content in pdf_files:
-            st.download_button(
-                label=f"Download {pdf_name}",
-                data=pdf_content,
-                file_name=pdf_name,
-                mime="application/pdf"
-            )
+    for pdf_name, pdf_content in st.session_state.pdf_files:
+        st.download_button(
+            label=f"Download {pdf_name}",
+            data=pdf_content,
+            file_name=pdf_name,
+            mime="application/pdf",
+            on_click=lambda: st.info("Nothing to download!") if not pdf_content else None
+        )
 
-        for txt_name, txt_content in text_files:
-            st.download_button(
-                label=f"Download {txt_name}",
-                data=txt_content,
-                file_name=txt_name,
-                mime="text/plain"
-            )
+    for txt_name, txt_content in st.session_state.text_files:
+        st.download_button(
+            label=f"Download {txt_name}",
+            data=txt_content,
+            file_name=txt_name,
+            mime="text/plain",
+            on_click=lambda: st.info("Nothing to download!") if not txt_content else None
+        )
 
-        for csv_name, csv_content in csv_files:
-            st.download_button(
-                label=f"Download {csv_name}",
-                data=csv_content,
-                file_name=csv_name,
-                mime="text/csv"
-            )
+    for csv_name, csv_content in st.session_state.csv_files:
+        st.download_button(
+            label=f"Download {csv_name}",
+            data=csv_content,
+            file_name=csv_name,
+            mime="text/csv",
+            on_click=lambda: st.info("Nothing to download!") if not csv_content else None
+        )
 
+    if st.session_state.consolidated_csv:
         st.download_button(
             label=f"Download Consolidated CSV for {legal_name}",
-            data=consolidated_csv,
+            data=st.session_state.consolidated_csv,
             file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
         )
