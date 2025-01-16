@@ -118,48 +118,58 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
 
 
 def consolidate_csvs(csv_buffers):
-    """Consolidate multiple CSV buffers with 3-column gaps for headers and 1-column gaps for data tables."""
+    """Consolidate multiple CSV buffers with proper alignment and spacing."""
+    # Prepare consolidated rows
     consolidated_rows = []
-    max_data_rows = max(len(list(csv.reader(buf))[5:]) for buf in csv_buffers if len(list(csv.reader(buf))) > 5)  # Handle empty data gracefully
+    max_data_rows = 0
 
-    csv_tables = []
+    # Collect headers and data for each statement
+    header_rows = []
+    data_tables = []
+
     for buf in csv_buffers:
         buf.seek(0)
         rows = list(csv.reader(buf))
-        csv_tables.append(rows)
 
-    # Combine headers (6-cell boxes) with 3-column gaps
-    for row_idx in range(6):  # First 6 rows are the header block
-        consolidated_row = []
-        for table in csv_tables:
-            if row_idx < len(table):
-                consolidated_row.extend(table[row_idx])
-            else:
-                consolidated_row.extend([""] * len(table[0]) if len(table) > 0 else [""] * 6)  # Match header width
-            consolidated_row.extend([""] * 3)  # 3-column gap for headers
-        consolidated_rows.append(consolidated_row)
+        # Headers (First 6 Rows: Company Info and Blank Row)
+        header = rows[:6]
+        header_rows.append(header)
 
-    # Add a blank row between headers and data
+        # Data Rows (Starting from Row 6)
+        data = rows[6:]
+        max_data_rows = max(max_data_rows, len(data))
+        data_tables.append(data)
+
+    # Align headers with a three-column gap
+    aligned_headers = []
+    for header in header_rows:
+        aligned_header = []
+        for row in header:
+            aligned_header.extend(row + ["", "", ""])  # Add a three-column gap
+        aligned_headers.append(aligned_header[:-3])  # Remove the last extra gap
+    for header in zip(*aligned_headers):
+        consolidated_rows.append(header)
+
+    # Add a blank row after headers
     consolidated_rows.append([])
 
-    # Combine data tables with 1-column gaps
-    for data_row_idx in range(max_data_rows):
-        consolidated_row = []
-        for table in csv_tables:
-            data_rows = table[5:] if len(table) > 5 else []  # Data starts from row 5, handle empty data
-            if data_row_idx < len(data_rows):
-                consolidated_row.extend(data_rows[data_row_idx])
+    # Consolidate data tables with a single-column gap
+    for i in range(max_data_rows):
+        row = []
+        for data_table in data_tables:
+            if i < len(data_table):
+                row.extend(data_table[i] + [""])  # Add a single-column gap
             else:
-                consolidated_row.extend([""] * len(data_rows[0]) if len(data_rows) > 0 else [""] * 4)  # Match data width
-            consolidated_row.extend([""])  # 1-column gap for data
-        consolidated_rows.append(consolidated_row)
+                row.extend([""] * (len(data_table[0]) + 1))  # Empty row with a gap
+        consolidated_rows.append(row[:-1])  # Remove last extra gap
 
-    # Write consolidated rows into a single CSV buffer
+    # Write the consolidated rows to a CSV buffer
     consolidated_buffer = StringIO()
     writer = csv.writer(consolidated_buffer)
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 
 
