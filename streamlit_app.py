@@ -72,32 +72,79 @@ def format_individual_csv(company_name, company_number, statement_date, sharehol
     return csv_buffer
 
 def consolidate_csvs(csv_buffers):
-    """Consolidate multiple CSV buffers horizontally with a column break."""
+    """Consolidate multiple CSV buffers horizontally with proper header alignment."""
     consolidated_rows = []
     max_rows = max(len(list(csv.reader(buf))) for buf in csv_buffers)
 
-    for i in range(max_rows):
+    # Initialize headers for consolidated file
+    consolidated_header = []
+    consolidated_subheader = []
+    consolidated_column_headers = []
+
+    for buf in csv_buffers:
+        buf.seek(0)
+        rows = list(csv.reader(buf))
+        
+        # Extract the company-level headers (first 3 rows)
+        consolidated_header.extend(rows[0][:1] + [""] * (len(rows[0]) - 1))  # "Company Legal Name"
+        consolidated_subheader.extend(rows[1][:1] + [""] * (len(rows[1]) - 1))  # "Company Number"
+        consolidated_column_headers.extend(rows[4])  # Shareholding data headers
+
+        consolidated_header.append("")  # Column break
+        consolidated_subheader.append("")  # Column break
+        consolidated_column_headers.append("")  # Column break
+
+    # Append the consolidated headers to the output
+    consolidated_rows.append(consolidated_header)
+    consolidated_rows.append(consolidated_subheader)
+    consolidated_rows.append(consolidated_column_headers)
+
+    # Append the shareholding details for each statement
+    for i in range(max_rows - 5):  # Start from row 5
         row = []
         for buf in csv_buffers:
             buf.seek(0)
             rows = list(csv.reader(buf))
-            row.extend(rows[i] if i < len(rows) else [""] * len(rows[0]))
+            row.extend(rows[i + 5] if i + 5 < len(rows) else [""] * len(rows[4]))
             row.append("")  # Column break
         consolidated_rows.append(row)
 
+    # Write the consolidated rows to a new buffer
     consolidated_buffer = StringIO()
     writer = csv.writer(consolidated_buffer)
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
 
-def process_text_to_csv(text_content, company_name, company_number, statement_date):
-    """Process text content into an individual CSV format."""
-    lines = text_content.split("\n")
-    shareholder_data = []
 
+def process_text_to_csv(text_content, statement_number, legal_name, company_number):
+    """Process text content to generate a CSV for a single statement."""
+    csv_data = []
+    statement_date = ""
+
+    if not text_content.strip():
+        return StringIO(), None  # Return an empty CSV if no text content
+
+    # Combine lines intelligently
+    lines = text_content.split("\n")
+    combined_text = "\n".join(lines)
+
+    # Look for the Statement Date pattern
+    statement_date_match = re.search(r"Confirmation\s+Statement\s+date:\s*(\d{2}/\d{2}/\d{4})", combined_text, re.IGNORECASE)
+    if statement_date_match:
+        statement_date = statement_date_match.group(1)
+
+    # Add company details to the top of the CSV
+    csv_data.append(["Company Legal Name", legal_name])
+    csv_data.append(["Company Number", company_number])
+    csv_data.append(["Statement Date", statement_date])
+    csv_data.append([])  # Blank row
+    csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
+
+    # Extract shareholding details
     for i, line in enumerate(lines):
         line = line.strip()
+
         if line.startswith("Shareholding"):
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
@@ -115,11 +162,17 @@ def process_text_to_csv(text_content, company_name, company_number, statement_da
                     break
                 j += 1
 
-            shareholder_data.append([
+            csv_data.append([
                 shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
             ])
 
-    return format_individual_csv(company_name, company_number, statement_date, shareholder_data)
+    # Create CSV buffer
+    csv_buffer = StringIO()
+    writer = csv.writer(csv_buffer)
+    writer.writerows(csv_data)
+    csv_buffer.seek(0)
+    return csv_buffer, statement_date
+
 
 def main():
     st.title("Company Confirmation Statement Downloader")
