@@ -136,7 +136,7 @@ def consolidate_csvs(csv_buffers):
         header_rows.append(header)
 
         # Data Rows (Starting from Row 6)
-        data = rows[6:]
+        data = rows[6:] if len(rows) > 6 else []
         max_data_rows = max(max_data_rows, len(data))
         data_tables.append(data)
 
@@ -160,7 +160,8 @@ def consolidate_csvs(csv_buffers):
             if i < len(data_table):
                 row.extend(data_table[i] + [""])  # Add a single-column gap
             else:
-                row.extend([""] * (len(data_table[0]) + 1))  # Empty row with a gap
+                # Add empty cells matching the width of the data table
+                row.extend([""] * (len(data_table[0]) + 1) if data_table else [""] * 5)
         consolidated_rows.append(row[:-1])  # Remove last extra gap
 
     # Write the consolidated rows to a CSV buffer
@@ -169,6 +170,7 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 
 
