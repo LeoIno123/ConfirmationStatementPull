@@ -26,17 +26,20 @@ def get_confirmation_statement_transaction_ids(company_number, api_key):
     url = f"{API_BASE_URL}/company/{company_number}/filing-history"
     headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
     response = requests.get(url, headers=headers)
+    
     if response.status_code != 200:
         st.error("Failed to fetch filing history.")
         return []
     
     data = response.json()
+    st.write("Filing history items:", data.get("items", []))  # Debugging
     transaction_ids = [
         item.get("transaction_id")
         for item in data.get("items", [])
         if "confirmation statement" in item.get("description", "").lower() or item.get("type") == "CS01"
     ]
     return transaction_ids[:3]  # Ensure it fetches up to 3 transaction IDs
+
 
 def download_pdf(company_number, transaction_id):
     """Download the confirmation statement PDF."""
