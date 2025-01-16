@@ -73,9 +73,9 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
         statement_date = statement_date_match.group(1)
 
     # Add headers and top-level details
-    csv_data.append(["", "", "", "Company Legal Name", legal_name])
-    csv_data.append(["", "", "", "Company Number", company_number])
-    csv_data.append(["", "", "", "Statement Date", statement_date])
+    csv_data.append(["", "Company Legal Name", legal_name])
+    csv_data.append(["", "Company Number", company_number])
+    csv_data.append(["", "Statement Date", statement_date])
     csv_data.append([])  # Blank row
     csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])  # Data headers
 
@@ -116,6 +116,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
 
 
 
+
 def consolidate_csvs(csv_buffers):
     """Consolidate multiple CSV buffers horizontally as distinct tables with aligned headers."""
     consolidated_rows = []
@@ -135,11 +136,11 @@ def consolidate_csvs(csv_buffers):
                 row = table[row_idx]
                 # Align top-level headers above the `Shareholding #` column
                 if row_idx == 0:  # "Company Legal Name"
-                    consolidated_row.extend([""] * 4 + row)
+                    consolidated_row.extend([""] + row)
                 elif row_idx == 1:  # "Company Number"
-                    consolidated_row.extend([""] * 4 + row)
+                    consolidated_row.extend([""] + row)
                 elif row_idx == 2:  # "Statement Date"
-                    consolidated_row.extend([""] * 4 + row)
+                    consolidated_row.extend([""] + row)
                 elif row_idx >= 4:  # Data rows start after header rows
                     consolidated_row.extend(row)
                 else:  # Blank rows or unused rows
@@ -156,6 +157,7 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 
 
