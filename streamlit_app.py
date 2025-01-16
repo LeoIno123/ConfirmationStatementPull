@@ -55,7 +55,7 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def process_text_to_csv(text_content, legal_name, company_number):
+def process_text_to_csv(text_content, statement_number, legal_name, company_number):
     """Process text content to generate a CSV for a single statement."""
     csv_data = []
     statement_date = ""
@@ -63,13 +63,12 @@ def process_text_to_csv(text_content, legal_name, company_number):
     if not text_content.strip():
         return StringIO(), None  # Return an empty CSV if no text content
 
+    # Combine lines intelligently
     lines = text_content.split("\n")
-
-    # Combine lines intelligently to handle multi-line dates
     combined_text = "\n".join(lines)
 
     # Look for the Statement Date pattern
-    statement_date_match = re.search(r"Confirmation\s+Statement\s+date[:\s]*(\d{2}/\d{2}/\d{4})", combined_text, re.IGNORECASE)
+    statement_date_match = re.search(r"Confirmation\s+Statement\s+date:\s*(\d{2}/\d{2}/\d{4})", combined_text, re.IGNORECASE)
     if statement_date_match:
         statement_date = statement_date_match.group(1)
 
@@ -88,10 +87,13 @@ def process_text_to_csv(text_content, legal_name, company_number):
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
             raw_details = parts[1].strip()
+
+            # Extract the number of shares and type of shares separately
             amount_of_shares = re.search(r"\d+", raw_details).group() if re.search(r"\d+", raw_details) else "Unknown"
-            type_of_shares_match = re.search(r"(.*?)\s+shares", raw_details.lower())
+            type_of_shares_match = re.search(r"\d+\s+(.*)", raw_details)  # Match only the type after the number
             type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
 
+            # Extract shareholder name
             shareholder_name = ""
             j = i + 1
             while j < len(lines):
@@ -118,38 +120,45 @@ def consolidate_csvs(csv_buffers):
     headers = []
     max_rows = 0
 
-    # Collect all headers and determine max rows
+    # Collect headers and calculate maximum number of rows in shareholding data
     for buf in csv_buffers:
         buf.seek(0)
         rows = list(csv.reader(buf))
         if len(rows) >= 5:  # Ensure there are at least 5 rows for valid CSV content
-            headers.append(rows[:5])
+            headers.append(rows[:5])  # First 5 rows are the headers
         else:
-            headers.append([[""] * 4] * 5)  # Add empty rows for invalid or short CSVs
-        max_rows = max(max_rows, len(rows) - 5)  # Ignore first 5 rows (header rows)
+            headers.append([[""] * 4] * 5)  # Add empty headers if the CSV is invalid
+        max_rows = max(max_rows, len(rows) - 5)  # Exclude header rows
 
-    # Consolidate headers horizontally
-    for i in range(5):  # First 5 rows are headers
+    # Consolidate headers horizontally, aligned with shareholding data
+    for i in range(5):  # Process the first 5 rows (headers)
         row = []
         for header in headers:
             if i < len(header):
-                row.extend(header[i])
+                row.extend(header[i])  # Add the current header row
             else:
-                row.extend([""] * len(header[0]))  # Empty cells for missing rows
-            row.append("")  # Add empty column for spacing
+                row.extend([""] * len(header[0]))  # Add empty cells if header row is missing
+            row.append("")  # Add column break
         consolidated_rows.append(row)
 
-    # Consolidate shareholding details horizontally
+    # Add column headers for shareholding data (aligned under statement headers)
+    consolidated_column_headers = []
+    for header in headers:
+        consolidated_column_headers.extend(header[4])  # Add "Shareholding #" headers
+        consolidated_column_headers.append("")  # Add column break
+    consolidated_rows.append(consolidated_column_headers)
+
+    # Consolidate shareholding data horizontally
     for i in range(max_rows):
         row = []
         for buf in csv_buffers:
             buf.seek(0)
             rows = list(csv.reader(buf))
-            if i + 5 < len(rows):  # Start at the 6th row
-                row.extend(rows[i + 5])
+            if i + 5 < len(rows):  # Start at the 6th row (shareholding data)
+                row.extend(rows[i + 5])  # Add shareholding data row
             else:
-                row.extend([""] * len(rows[5]) if len(rows) > 5 else [""] * 4)  # Add empty cells if no more rows
-            row.append("")  # Add empty column for spacing
+                row.extend([""] * len(rows[4]))  # Add empty cells for missing data
+            row.append("")  # Add column break
         consolidated_rows.append(row)
 
     # Create a consolidated CSV buffer
