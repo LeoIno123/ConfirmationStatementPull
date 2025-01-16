@@ -55,69 +55,7 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def format_individual_csv(company_name, company_number, statement_date, shareholder_data):
-    """Format an individual CSV file."""
-    csv_data = [
-        ["Company Legal Name", company_name],
-        ["Company Number", company_number],
-        ["Statement Date", statement_date],
-        [],
-        ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"],
-    ]
-    csv_data.extend(shareholder_data)
-    csv_buffer = StringIO()
-    writer = csv.writer(csv_buffer)
-    writer.writerows(csv_data)
-    csv_buffer.seek(0)
-    return csv_buffer
-
-def consolidate_csvs(csv_buffers):
-    """Consolidate multiple CSV buffers horizontally with proper header alignment."""
-    consolidated_rows = []
-    max_rows = max(len(list(csv.reader(buf))) for buf in csv_buffers)
-
-    # Initialize headers for consolidated file
-    consolidated_header = []
-    consolidated_subheader = []
-    consolidated_column_headers = []
-
-    for buf in csv_buffers:
-        buf.seek(0)
-        rows = list(csv.reader(buf))
-        
-        # Extract the company-level headers (first 3 rows)
-        consolidated_header.extend(rows[0][:1] + [""] * (len(rows[0]) - 1))  # "Company Legal Name"
-        consolidated_subheader.extend(rows[1][:1] + [""] * (len(rows[1]) - 1))  # "Company Number"
-        consolidated_column_headers.extend(rows[4])  # Shareholding data headers
-
-        consolidated_header.append("")  # Column break
-        consolidated_subheader.append("")  # Column break
-        consolidated_column_headers.append("")  # Column break
-
-    # Append the consolidated headers to the output
-    consolidated_rows.append(consolidated_header)
-    consolidated_rows.append(consolidated_subheader)
-    consolidated_rows.append(consolidated_column_headers)
-
-    # Append the shareholding details for each statement
-    for i in range(max_rows - 5):  # Start from row 5
-        row = []
-        for buf in csv_buffers:
-            buf.seek(0)
-            rows = list(csv.reader(buf))
-            row.extend(rows[i + 5] if i + 5 < len(rows) else [""] * len(rows[4]))
-            row.append("")  # Column break
-        consolidated_rows.append(row)
-
-    # Write the consolidated rows to a new buffer
-    consolidated_buffer = StringIO()
-    writer = csv.writer(consolidated_buffer)
-    writer.writerows(consolidated_rows)
-    consolidated_buffer.seek(0)
-    return consolidated_buffer
-
-
-def process_text_to_csv(text_content, statement_number, legal_name, company_number):
+def process_text_to_csv(text_content, legal_name, company_number):
     """Process text content to generate a CSV for a single statement."""
     csv_data = []
     statement_date = ""
@@ -125,12 +63,13 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     if not text_content.strip():
         return StringIO(), None  # Return an empty CSV if no text content
 
-    # Combine lines intelligently
     lines = text_content.split("\n")
+
+    # Combine lines intelligently to handle multi-line dates
     combined_text = "\n".join(lines)
 
     # Look for the Statement Date pattern
-    statement_date_match = re.search(r"Confirmation\s+Statement\s+date:\s*(\d{2}/\d{2}/\d{4})", combined_text, re.IGNORECASE)
+    statement_date_match = re.search(r"Confirmation\s+Statement\s+date[:\s]*(\d{2}/\d{2}/\d{4})", combined_text, re.IGNORECASE)
     if statement_date_match:
         statement_date = statement_date_match.group(1)
 
@@ -173,6 +112,46 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     csv_buffer.seek(0)
     return csv_buffer, statement_date
 
+def consolidate_csvs(csv_buffers):
+    """Consolidate multiple CSV buffers horizontally with proper header alignment."""
+    consolidated_rows = []
+    headers = []
+    max_rows = 0
+
+    # Collect all headers and determine max rows
+    for idx, buf in enumerate(csv_buffers):
+        buf.seek(0)
+        rows = list(csv.reader(buf))
+        max_rows = max(max_rows, len(rows) - 5)  # Ignore first 5 rows (header rows)
+        headers.append(rows[:5])
+
+    # Consolidate headers horizontally
+    for i in range(5):  # First 5 rows are headers
+        row = []
+        for header in headers:
+            row.extend(header[i])
+            row.append("")  # Add empty column for spacing
+        consolidated_rows.append(row)
+
+    # Consolidate shareholding details horizontally
+    for i in range(max_rows):
+        row = []
+        for buf in csv_buffers:
+            buf.seek(0)
+            rows = list(csv.reader(buf))
+            if i + 5 < len(rows):  # Start at the 6th row
+                row.extend(rows[i + 5])
+            else:
+                row.extend([""] * len(rows[5]))  # Add empty cells if no more rows
+            row.append("")  # Add empty column for spacing
+        consolidated_rows.append(row)
+
+    # Create a consolidated CSV buffer
+    consolidated_buffer = StringIO()
+    writer = csv.writer(consolidated_buffer)
+    writer.writerows(consolidated_rows)
+    consolidated_buffer.seek(0)
+    return consolidated_buffer
 
 def main():
     st.title("Company Confirmation Statement Downloader")
@@ -212,15 +191,13 @@ def main():
 
         for idx, transaction_id in enumerate(transaction_ids):
             pdf_content = download_pdf(company_number, transaction_id)
-            if not pdf_content:
-                continue
-
-            st.session_state.pdf_files.append((f"{legal_name}_statement_{idx + 1}.pdf", pdf_content))
-            text_content = extract_text_from_pdf(pdf_content)
-            st.session_state.text_files.append((f"{legal_name}_statement_{idx + 1}.txt", text_content))
-            csv_buffer = process_text_to_csv(text_content, legal_name, company_number, f"Statement Date {idx + 1}")
-            st.session_state.csv_files.append((f"{legal_name}_statement_{idx + 1}.csv", csv_buffer.getvalue()))
-            csv_buffers.append(csv_buffer)
+            if pdf_content:
+                st.session_state.pdf_files.append((f"{legal_name}_statement_{idx + 1}.pdf", pdf_content))
+                text_content = extract_text_from_pdf(pdf_content)
+                st.session_state.text_files.append((f"{legal_name}_statement_{idx + 1}.txt", text_content))
+                csv_buffer, _ = process_text_to_csv(text_content, legal_name, company_number)
+                st.session_state.csv_files.append((f"{legal_name}_statement_{idx + 1}.csv", csv_buffer.getvalue()))
+                csv_buffers.append(csv_buffer)
 
         st.session_state.consolidated_csv = consolidate_csvs(csv_buffers).getvalue()
 
@@ -234,7 +211,7 @@ def main():
 
     if st.session_state.consolidated_csv:
         st.download_button(
-            label=f"Download Consolidated CSV for {legal_name}",
+            label="Download Consolidated CSV",
             data=st.session_state.consolidated_csv,
             file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
