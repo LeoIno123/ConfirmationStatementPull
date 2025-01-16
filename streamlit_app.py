@@ -22,7 +22,7 @@ def get_company_number(legal_name, api_key):
     return data.get("items", [{}])[0].get("company_number")
 
 def get_confirmation_statement_transaction_ids(company_number, api_key):
-    """Fetch the transaction IDs for the last three confirmation statements."""
+    """Fetch the transaction IDs for the last three confirmation statements (CS01)."""
     url = f"{API_BASE_URL}/company/{company_number}/filing-history"
     headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
     response = requests.get(url, headers=headers)
@@ -32,13 +32,17 @@ def get_confirmation_statement_transaction_ids(company_number, api_key):
         return []
     
     data = response.json()
-    st.write("Filing history items:", data.get("items", []))  # Debugging
+    items = data.get("items", [])
+    
+    # Filter for confirmation statement documents (CS01)
     transaction_ids = [
-        item.get("transaction_id")
-        for item in data.get("items", [])
-        if "confirmation statement" in item.get("description", "").lower() or item.get("type") == "CS01"
+        item["transaction_id"]
+        for item in items
+        if item.get("type") == "CS01"
     ]
-    return transaction_ids[:3]  # Ensure it fetches up to 3 transaction IDs
+    
+    # Return up to the last 3 transaction IDs
+    return transaction_ids[:3]
 
 
 def download_pdf(company_number, transaction_id):
