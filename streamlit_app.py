@@ -134,13 +134,13 @@ def consolidate_csvs(csv_buffers):
         for table in csv_tables:
             if row_idx < len(table):  # If the row exists in this table
                 row = table[row_idx]
-                # Align top-level headers above the `Shareholding #` column
+                # Align top-level headers above the `Shareholding #` column, starting at Column A
                 if row_idx == 0:  # "Company Legal Name"
-                    consolidated_row.extend(row[1:])  # Shift 2 columns left
+                    consolidated_row.extend(["", ""] + row[1:])  # Add 2 empty columns before
                 elif row_idx == 1:  # "Company Number"
-                    consolidated_row.extend(row[1:])  # Shift 2 columns left
+                    consolidated_row.extend(["", ""] + row[1:])  # Add 2 empty columns before
                 elif row_idx == 2:  # "Statement Date"
-                    consolidated_row.extend(row[1:])  # Shift 2 columns left
+                    consolidated_row.extend(["", ""] + row[1:])  # Add 2 empty columns before
                 elif row_idx >= 4:  # Data rows start after header rows
                     consolidated_row.extend(row)
                 else:  # Blank rows or unused rows
