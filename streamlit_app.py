@@ -11,6 +11,7 @@ API_BASE_URL = "https://api.company-information.service.gov.uk"
 PDF_DOWNLOAD_URL = "https://find-and-update.company-information.service.gov.uk"
 
 def get_company_number(legal_name, api_key):
+    """Fetch the company number using the legal name."""
     url = f"{API_BASE_URL}/search/companies?q={legal_name}"
     headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
     response = requests.get(url, headers=headers)
@@ -21,6 +22,7 @@ def get_company_number(legal_name, api_key):
     return data.get("items", [{}])[0].get("company_number")
 
 def get_confirmation_statement_transaction_ids(company_number, api_key):
+    """Fetch the transaction IDs for the last three confirmation statements."""
     url = f"{API_BASE_URL}/company/{company_number}/filing-history"
     headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
     response = requests.get(url, headers=headers)
@@ -33,25 +35,31 @@ def get_confirmation_statement_transaction_ids(company_number, api_key):
         for item in data.get("items", [])
         if "confirmation statement" in item.get("description", "").lower() or item.get("type") == "CS01"
     ]
-    st.write(f"Retrieved Transaction IDs: {transaction_ids}")
     return transaction_ids[:3]
 
 def download_pdf(company_number, transaction_id):
+    """Download the confirmation statement PDF."""
     url = f"{PDF_DOWNLOAD_URL}/company/{company_number}/filing-history/{transaction_id}/document?format=pdf&download=0"
     response = requests.get(url)
     if response.status_code == 200:
         return response.content
     else:
-        st.error(f"Failed to download PDF for transaction ID: {transaction_id}")
         return None
 
 def extract_text_from_pdf(pdf_content):
+    """Extract text from a PDF file."""
     pdf_reader = PdfReader(BytesIO(pdf_content))
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
 def process_text_to_csv(text_contents, legal_name):
-    csv_data = [["Company Name", "Company Number", "Statement Date", "Shareholding Number", "Amount of Shares", "Type of Shares", "Shareholder Name"]]
+    """Process text content from multiple PDFs to generate a consolidated CSV."""
+    csv_data = [
+        [
+            "Company Legal Name", "Company Number", "Statement Date",
+            "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"
+        ]
+    ]
 
     for text_content in text_contents:
         if not text_content.strip():
@@ -124,36 +132,37 @@ def main():
             st.error("No confirmation statements found.")
             return
 
-        pdf_contents = []
+        pdf_files = []
         text_contents = []
 
         st.info("Downloading confirmation statement PDFs...")
-        for transaction_id in transaction_ids:
+        for idx, transaction_id in enumerate(transaction_ids):
             pdf_content = download_pdf(company_number, transaction_id)
             if pdf_content:
-                pdf_contents.append(pdf_content)
-                text_contents.append(extract_text_from_pdf(pdf_content))
+                pdf_files.append((f"{legal_name}_statement_{idx + 1}.pdf", pdf_content))
+                text_content = extract_text_from_pdf(pdf_content)
+                text_contents.append((f"{legal_name}_statement_{idx + 1}.txt", text_content))
 
-        if not pdf_contents:
+        if not pdf_files:
             st.error("Failed to download any PDFs.")
             return
 
         st.info("Generating consolidated CSV...")
-        csv_buffer = process_text_to_csv(text_contents, legal_name)
+        csv_buffer = process_text_to_csv([t[1] for t in text_contents], legal_name)
 
-        for idx, pdf_content in enumerate(pdf_contents):
+        for pdf_name, pdf_content in pdf_files:
             st.download_button(
-                label=f"Download Statement {idx + 1} PDF",
+                label=f"Download {pdf_name}",
                 data=pdf_content,
-                file_name=f"{legal_name}_statement_{idx + 1}.pdf",
+                file_name=pdf_name,
                 mime="application/pdf"
             )
 
-        for idx, text_content in enumerate(text_contents):
+        for txt_name, txt_content in text_contents:
             st.download_button(
-                label=f"Download Statement {idx + 1} TXT",
-                data=text_content,
-                file_name=f"{legal_name}_statement_{idx + 1}.txt",
+                label=f"Download {txt_name}",
+                data=txt_content,
+                file_name=txt_name,
                 mime="text/plain"
             )
 
@@ -163,7 +172,6 @@ def main():
             file_name=f"{legal_name}_confirmation_statements.csv",
             mime="text/csv"
         )
-
 
 if __name__ == "__main__":
     main()
