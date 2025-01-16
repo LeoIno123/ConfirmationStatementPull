@@ -118,9 +118,9 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
 
 
 def consolidate_csvs(csv_buffers):
-    """Consolidate multiple CSV buffers horizontally with proper header alignment and 3-column gaps."""
+    """Consolidate multiple CSV buffers with 3-column gaps for headers and 1-column gaps for data tables."""
     consolidated_rows = []
-    max_table_length = max(len(list(csv.reader(buf))) for buf in csv_buffers)
+    max_data_rows = max(len(list(csv.reader(buf))[5:]) for buf in csv_buffers)  # Count rows starting from data
 
     csv_tables = []
     for buf in csv_buffers:
@@ -128,17 +128,30 @@ def consolidate_csvs(csv_buffers):
         rows = list(csv.reader(buf))
         csv_tables.append(rows)
 
-    # Adjust the alignment by treating headers and data as separate tables
-    for row_idx in range(max_table_length):
+    # Combine headers (6-cell boxes) with 3-column gaps
+    for row_idx in range(6):  # First 6 rows are the header block
         consolidated_row = []
         for table in csv_tables:
-            if row_idx < len(table):  # If the row exists in this table
-                row = table[row_idx]
-                consolidated_row.extend(row)
+            if row_idx < len(table):
+                consolidated_row.extend(table[row_idx])
             else:
-                # If this row does not exist in the table, add empty cells equivalent to the length of a typical row
-                consolidated_row.extend([""] * len(csv_tables[0][4]))  # Use length of a typical row from one table
-            consolidated_row.extend([""] * 3)  # Add a 3-column gap between tables
+                consolidated_row.extend([""] * len(table[0]))  # Match header width
+            consolidated_row.extend([""] * 3)  # 3-column gap for headers
+        consolidated_rows.append(consolidated_row)
+
+    # Add a blank row between headers and data
+    consolidated_rows.append([])
+
+    # Combine data tables with 1-column gaps
+    for data_row_idx in range(max_data_rows):
+        consolidated_row = []
+        for table in csv_tables:
+            data_rows = table[5:]  # Data starts from row 5
+            if data_row_idx < len(data_rows):
+                consolidated_row.extend(data_rows[data_row_idx])
+            else:
+                consolidated_row.extend([""] * len(data_rows[0]))  # Match data width
+            consolidated_row.extend([""])  # 1-column gap for data
         consolidated_rows.append(consolidated_row)
 
     # Write consolidated rows into a single CSV buffer
@@ -147,6 +160,7 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 
 
