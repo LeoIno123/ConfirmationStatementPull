@@ -80,7 +80,11 @@ def process_text_to_csv(text_content):
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
             shareholding_details = parts[1].strip().split()
-            amount_of_shares, type_of_shares = shareholding_details[0], " ".join(shareholding_details[1:])
+            amount_of_shares, raw_type_of_shares = shareholding_details[0], " ".join(shareholding_details[1:])
+
+            # Extract only the portion before "shares"
+            type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
+            type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown Type"
 
             shareholder_name = ""
             j = i + 1
@@ -99,6 +103,7 @@ def process_text_to_csv(text_content):
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer
+
 
 
 def main():
