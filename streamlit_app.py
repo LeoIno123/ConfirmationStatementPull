@@ -113,13 +113,8 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     csv_buffer.seek(0)
     return csv_buffer, statement_date
 
-
-
-
-
 def consolidate_csvs(csv_buffers):
     """Consolidate multiple CSV buffers with proper alignment and spacing."""
-    # Prepare consolidated rows
     consolidated_rows = []
     max_data_rows = 0
 
@@ -147,6 +142,7 @@ def consolidate_csvs(csv_buffers):
         for row in header:
             aligned_header.extend(row + ["", "", ""])  # Add a three-column gap
         aligned_headers.append(aligned_header[:-3])  # Remove the last extra gap
+
     for header in zip(*aligned_headers):
         consolidated_rows.append(header)
 
@@ -170,12 +166,6 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
-
-
-
-
-
-
 
 def main():
     st.title("Company Confirmation Statement Downloader")
@@ -250,8 +240,6 @@ def main():
             file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
         )
-
-
 
 if __name__ == "__main__":
     main()
