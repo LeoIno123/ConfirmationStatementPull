@@ -207,13 +207,22 @@ def main():
 
         for idx, transaction_id in enumerate(transaction_ids):
             pdf_content = download_pdf(company_number, transaction_id)
-            if pdf_content:
-                st.session_state.pdf_files.append((f"{legal_name}_statement_{idx + 1}.pdf", pdf_content))
-                text_content = extract_text_from_pdf(pdf_content)
-                st.session_state.text_files.append((f"{legal_name}_statement_{idx + 1}.txt", text_content))
-                csv_buffer, _ = process_text_to_csv(text_content, legal_name, company_number)
-                st.session_state.csv_files.append((f"{legal_name}_statement_{idx + 1}.csv", csv_buffer.getvalue()))
-                csv_buffers.append(csv_buffer)
+            if not pdf_content:
+                continue
+
+            # Process the files
+            pdf_name = f"{legal_name}_statement_{idx + 1}.pdf"
+            txt_name = f"{legal_name}_statement_{idx + 1}.txt"
+            csv_name = f"{legal_name}_statement_{idx + 1}.csv"
+
+            st.session_state.pdf_files.append((pdf_name, pdf_content))
+            text_content = extract_text_from_pdf(pdf_content)
+            st.session_state.text_files.append((txt_name, text_content))
+            csv_buffer, _ = process_text_to_csv(
+                text_content, idx + 1, legal_name, company_number
+            )
+            st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
+            csv_buffers.append(csv_buffer)
 
         st.session_state.consolidated_csv = consolidate_csvs(csv_buffers).getvalue()
 
@@ -227,11 +236,12 @@ def main():
 
     if st.session_state.consolidated_csv:
         st.download_button(
-            label="Download Consolidated CSV",
+            label=f"Download Consolidated CSV for {legal_name}",
             data=st.session_state.consolidated_csv,
             file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
         )
+
 
 if __name__ == "__main__":
     main()
