@@ -29,13 +29,14 @@ def get_confirmation_statement_transaction_ids(company_number, api_key):
     if response.status_code != 200:
         st.error("Failed to fetch filing history.")
         return []
+    
     data = response.json()
     transaction_ids = [
         item.get("transaction_id")
         for item in data.get("items", [])
         if "confirmation statement" in item.get("description", "").lower() or item.get("type") == "CS01"
     ]
-    return transaction_ids[:3]
+    return transaction_ids[:3]  # Ensure it fetches up to 3 transaction IDs
 
 def download_pdf(company_number, transaction_id):
     """Download the confirmation statement PDF."""
@@ -167,7 +168,7 @@ def main():
             )
 
         st.download_button(
-            label=f"Download the 3 Consolidated CSV for {legal_name}",
+            label=f"Download Consolidated CSV for {legal_name}",
             data=csv_buffer.getvalue(),
             file_name=f"{legal_name}_confirmation_statements.csv",
             mime="text/csv"
