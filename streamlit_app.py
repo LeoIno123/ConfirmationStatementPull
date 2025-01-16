@@ -22,8 +22,8 @@ def get_company_number(legal_name, api_key):
     return data.get("items", [{}])[0].get("company_number")
 
 def get_confirmation_statement_transaction_ids(company_number, api_key):
-    """Fetch the transaction IDs for the last three confirmation statements."""
-    url = f"{API_BASE_URL}/company/{company_number}/filing-history"
+    """Fetch the transaction IDs for the latest 100 items, and filter for 'CS01' type."""
+    url = f"{API_BASE_URL}/company/{company_number}/filing-history?items_per_page=100"
     headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
     response = requests.get(url, headers=headers)
     
@@ -38,10 +38,10 @@ def get_confirmation_statement_transaction_ids(company_number, api_key):
     transaction_ids = [
         item.get("transaction_id")
         for item in items
-        if item.get("description") and "confirmation statement" in item["description"].lower()
+        if item.get("type") and item["type"].lower() == "cs01"
     ]
     st.write("Transaction IDs found:", transaction_ids)  # Debugging
-    return transaction_ids[:3]  # Limit to 3 IDs
+    return transaction_ids[:3]  # Limit to the last 3 CS01 IDs
 
 def download_pdf(company_number, transaction_id):
     """Download the confirmation statement PDF."""
@@ -58,56 +58,60 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def process_text_to_csv(text_contents, legal_name):
-    """Process text content from multiple PDFs to generate a consolidated CSV."""
+def process_text_to_csv(text_content, statement_number):
+    """Process text content to generate a CSV for a single statement."""
     csv_data = [
         [
-            "Company Legal Name", "Company Number", "Statement Date",
-            "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"
+            f"Statement {statement_number} - Company Legal Name", 
+            f"Statement {statement_number} - Company Number", 
+            f"Statement {statement_number} - Statement Date",
+            f"Statement {statement_number} - Shareholding #", 
+            f"Statement {statement_number} - Amount of Shares", 
+            f"Statement {statement_number} - Type of Shares", 
+            f"Statement {statement_number} - Shareholder Name"
         ]
     ]
 
-    for text_content in text_contents:
-        if not text_content.strip():
-            continue
+    if not text_content.strip():
+        return StringIO()  # Return an empty CSV if no text content
 
-        lines = text_content.split("\n")
-        company_name, company_number, statement_date = "", "", ""
+    lines = text_content.split("\n")
+    company_name, company_number, statement_date = "", "", ""
 
-        for i, line in enumerate(lines):
-            line = line.strip()
+    for i, line in enumerate(lines):
+        line = line.strip()
 
-            if line.startswith("Company Name:"):
-                company_name = line.split(":")[1].strip()
+        if line.startswith("Company Name:"):
+            company_name = line.split(":")[1].strip()
 
-            if line.startswith("Company Number:"):
-                company_number = line.split(":")[1].strip()
-                next_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
-                if next_line.startswith("Confirmation"):
-                    date_match = next_line.split()[-1]
-                    statement_date = date_match if "/" in date_match else ""
+        if line.startswith("Company Number:"):
+            company_number = line.split(":")[1].strip()
+            next_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            if next_line.startswith("Confirmation"):
+                date_match = next_line.split()[-1]
+                statement_date = date_match if "/" in date_match else ""
 
-            if line.startswith("Shareholding"):
-                parts = line.split(":")
-                shareholding_number = parts[0].split()[-1]
-                raw_details = parts[1].strip()
-                amount_of_shares = re.search(r"\d+", raw_details).group()
-                type_of_shares_match = re.search(r"(.*?)\s+shares", raw_details.lower())
-                type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
+        if line.startswith("Shareholding"):
+            parts = line.split(":")
+            shareholding_number = parts[0].split()[-1]
+            raw_details = parts[1].strip()
+            amount_of_shares = re.search(r"\d+", raw_details).group() if re.search(r"\d+", raw_details) else "Unknown"
+            type_of_shares_match = re.search(r"(.*?)\s+shares", raw_details.lower())
+            type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
 
-                shareholder_name = ""
-                j = i + 1
-                while j < len(lines):
-                    next_line = lines[j].strip()
-                    if next_line.startswith("Name:"):
-                        shareholder_name = next_line.split(":")[1].strip()
-                        break
-                    j += 1
+            shareholder_name = ""
+            j = i + 1
+            while j < len(lines):
+                next_line = lines[j].strip()
+                if next_line.startswith("Name:"):
+                    shareholder_name = next_line.split(":")[1].strip()
+                    break
+                j += 1
 
-                csv_data.append([
-                    company_name, company_number, statement_date,
-                    shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
-                ])
+            csv_data.append([
+                company_name, company_number, statement_date,
+                shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
+            ])
 
     csv_buffer = StringIO()
     writer = csv.writer(csv_buffer)
@@ -117,16 +121,6 @@ def process_text_to_csv(text_contents, legal_name):
 
 def main():
     st.title("Company Confirmation Statement Downloader")
-
-    # Initialize session state variables
-    if "transaction_ids" not in st.session_state:
-        st.session_state.transaction_ids = []
-    if "pdf_files" not in st.session_state:
-        st.session_state.pdf_files = []
-    if "text_files" not in st.session_state:
-        st.session_state.text_files = []
-    if "csv_file" not in st.session_state:
-        st.session_state.csv_file = None
 
     legal_name = st.text_input("Enter Company Legal Name:", "")
 
@@ -144,57 +138,62 @@ def main():
 
         st.info("Fetching confirmation statement transaction IDs...")
         transaction_ids = get_confirmation_statement_transaction_ids(company_number, api_key)
-        st.session_state.transaction_ids = transaction_ids
-
         if not transaction_ids:
             st.error("No confirmation statements found.")
             return
 
         pdf_files = []
         text_files = []
-        text_contents = []
+        csv_files = []
+        consolidated_data = []
 
         st.info("Downloading confirmation statement PDFs...")
         for idx, transaction_id in enumerate(transaction_ids):
             pdf_content = download_pdf(company_number, transaction_id)
+            pdf_name = f"{legal_name}_statement_{idx + 1}.pdf"
+            txt_name = f"{legal_name}_statement_{idx + 1}.txt"
+            csv_name = f"{legal_name}_statement_{idx + 1}.csv"
+
             if pdf_content:
-                pdf_files.append((f"{legal_name}_statement_{idx + 1}.pdf", pdf_content))
+                pdf_files.append((pdf_name, pdf_content))
                 text_content = extract_text_from_pdf(pdf_content)
-                text_files.append((f"{legal_name}_statement_{idx + 1}.txt", text_content))
-                text_contents.append(text_content)
+                text_files.append((txt_name, text_content))
+                csv_buffer = process_text_to_csv(text_content, idx + 1)
+                csv_files.append((csv_name, csv_buffer.getvalue()))
+                consolidated_data.append(csv_buffer.getvalue())
 
-        st.session_state.pdf_files = pdf_files
-        st.session_state.text_files = text_files
+        # Combine CSVs
+        consolidated_csv = "\n".join(consolidated_data)
 
-        st.info("Generating consolidated CSV...")
-        csv_buffer = process_text_to_csv(text_contents, legal_name)
-        st.session_state.csv_file = csv_buffer.getvalue()
+        # Display buttons
+        for pdf_name, pdf_content in pdf_files:
+            st.download_button(
+                label=f"Download {pdf_name}",
+                data=pdf_content,
+                file_name=pdf_name,
+                mime="application/pdf"
+            )
 
-    # Display transaction IDs for debugging
-    st.write("Transaction IDs:", st.session_state.transaction_ids)
+        for txt_name, txt_content in text_files:
+            st.download_button(
+                label=f"Download {txt_name}",
+                data=txt_content,
+                file_name=txt_name,
+                mime="text/plain"
+            )
 
-    # Display buttons for downloads
-    for pdf_name, pdf_content in st.session_state.pdf_files:
-        st.download_button(
-            label=f"Download {pdf_name}",
-            data=pdf_content,
-            file_name=pdf_name,
-            mime="application/pdf"
-        )
+        for csv_name, csv_content in csv_files:
+            st.download_button(
+                label=f"Download {csv_name}",
+                data=csv_content,
+                file_name=csv_name,
+                mime="text/csv"
+            )
 
-    for txt_name, txt_content in st.session_state.text_files:
-        st.download_button(
-            label=f"Download {txt_name}",
-            data=txt_content,
-            file_name=txt_name,
-            mime="text/plain"
-        )
-
-    if st.session_state.csv_file:
         st.download_button(
             label=f"Download Consolidated CSV for {legal_name}",
-            data=st.session_state.csv_file,
-            file_name=f"{legal_name}_confirmation_statements.csv",
+            data=consolidated_csv,
+            file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
         )
 
