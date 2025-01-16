@@ -118,7 +118,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
 
 
 def consolidate_csvs(csv_buffers):
-    """Consolidate multiple CSV buffers horizontally as distinct tables with aligned headers."""
+    """Consolidate multiple CSV buffers horizontally with proper header alignment and 3-column gaps."""
     consolidated_rows = []
     max_table_length = max(len(list(csv.reader(buf))) for buf in csv_buffers)
 
@@ -128,27 +128,17 @@ def consolidate_csvs(csv_buffers):
         rows = list(csv.reader(buf))
         csv_tables.append(rows)
 
-    # Prepare consolidated table row by row
+    # Adjust the alignment by treating headers and data as separate tables
     for row_idx in range(max_table_length):
         consolidated_row = []
         for table in csv_tables:
             if row_idx < len(table):  # If the row exists in this table
                 row = table[row_idx]
-                # Align top-level headers above the `Shareholding #` column, starting at Column A
-                if row_idx == 0:  # "Company Legal Name"
-                    consolidated_row.extend(["", ""] + row[1:])  # Add 2 empty columns before
-                elif row_idx == 1:  # "Company Number"
-                    consolidated_row.extend(["", ""] + row[1:])  # Add 2 empty columns before
-                elif row_idx == 2:  # "Statement Date"
-                    consolidated_row.extend(["", ""] + row[1:])  # Add 2 empty columns before
-                elif row_idx >= 4:  # Data rows start after header rows
-                    consolidated_row.extend(row)
-                else:  # Blank rows or unused rows
-                    consolidated_row.extend([""] * len(table[4]))
+                consolidated_row.extend(row)
             else:
-                # If this row does not exist in the table, add empty cells equivalent to the length of a typical data row
-                consolidated_row.extend([""] * len(table[4]))
-            consolidated_row.append("")  # Column break
+                # If this row does not exist in the table, add empty cells equivalent to the length of a typical row
+                consolidated_row.extend([""] * len(csv_tables[0][4]))  # Use length of a typical row from one table
+            consolidated_row.extend([""] * 3)  # Add a 3-column gap between tables
         consolidated_rows.append(consolidated_row)
 
     # Write consolidated rows into a single CSV buffer
@@ -157,6 +147,7 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 
 
