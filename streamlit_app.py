@@ -1,10 +1,10 @@
 import streamlit as st
-import re
 import requests
 import base64
 from io import BytesIO, StringIO
 from PyPDF2 import PdfReader
 import csv
+import re
 
 # Constants
 API_BASE_URL = "https://api.company-information.service.gov.uk"
@@ -21,19 +21,21 @@ def get_company_number(legal_name, api_key):
     data = response.json()
     return data.get("items", [{}])[0].get("company_number")
 
-def get_confirmation_statement_transaction_id(company_number, api_key):
-    """Fetch the transaction ID for the confirmation statement."""
+def get_confirmation_statement_transaction_ids(company_number, api_key):
+    """Fetch the transaction IDs for the last three confirmation statements."""
     url = f"{API_BASE_URL}/company/{company_number}/filing-history"
     headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         st.error("Failed to fetch filing history.")
-        return None
+        return []
     data = response.json()
-    for item in data.get("items", []):
-        if "confirmation statement" in item.get("description", "").lower() or item.get("type") == "CS01":
-            return item.get("transaction_id")
-    return None
+    transaction_ids = [
+        item.get("transaction_id")
+        for item in data.get("items", [])
+        if "confirmation statement" in item.get("description", "").lower() or item.get("type") == "CS01"
+    ]
+    return transaction_ids[:3]
 
 def download_pdf(company_number, transaction_id):
     """Download the confirmation statement PDF."""
@@ -42,7 +44,6 @@ def download_pdf(company_number, transaction_id):
     if response.status_code == 200:
         return response.content
     else:
-        st.error("Failed to download the confirmation statement PDF.")
         return None
 
 def extract_text_from_pdf(pdf_content):
@@ -51,146 +52,125 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def save_text_as_file(text_content, legal_name):
-    """Save extracted text as a .txt file."""
-    txt_filename = f"{legal_name}_confirmation_statement.txt"
-    return txt_filename, text_content
-
-def process_text_to_csv(text_content):
-    """Process text content to generate a CSV."""
-    lines = text_content.split("\n")
+def process_text_to_csv(text_contents, legal_name):
+    """Process text content from multiple PDFs to generate a consolidated CSV."""
     csv_data = [
-        ["Company Legal Name", "Company Number", "Statement Date", "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
+        [
+            "Company Legal Name", "Company Number", "Statement Date",
+            "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"
+        ]
     ]
 
-    company_name, company_number, statement_date = "", "", ""
-    for i, line in enumerate(lines):
-        line = line.strip()
+    for text_content in text_contents:
+        if not text_content.strip():
+            continue
 
-        if line.startswith("Company Name:"):
-            company_name = line.split(":")[1].strip()
+        lines = text_content.split("\n")
+        company_name, company_number, statement_date = "", "", ""
 
-        if line.startswith("Company Number:"):
-            company_number = line.split(":")[1].strip()
-            next_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
-            if next_line.startswith("Confirmation"):
-                date_match = next_line.split()[-1]
-                statement_date = date_match if "/" in date_match else ""
+        for i, line in enumerate(lines):
+            line = line.strip()
 
-        if line.startswith("Shareholding"):
-            parts = line.split(":")
-            shareholding_number = parts[0].split()[-1]
-            shareholding_details = parts[1].strip().split()
-            amount_of_shares, raw_type_of_shares = shareholding_details[0], " ".join(shareholding_details[1:])
+            if line.startswith("Company Name:"):
+                company_name = line.split(":")[1].strip()
 
-            # Extract only the portion before "shares"
-            type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
-            type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown Type"
+            if line.startswith("Company Number:"):
+                company_number = line.split(":")[1].strip()
+                next_line = lines[i + 1].strip() if i + 1 < len(lines) else ""
+                if next_line.startswith("Confirmation"):
+                    date_match = next_line.split()[-1]
+                    statement_date = date_match if "/" in date_match else ""
 
-            shareholder_name = ""
-            j = i + 1
-            while j < len(lines):
-                next_line = lines[j].strip()
-                if next_line.startswith("Name:"):
-                    shareholder_name = next_line.split(":")[1].strip()
-                    break
-                j += 1
+            if line.startswith("Shareholding"):
+                parts = line.split(":")
+                shareholding_number = parts[0].split()[-1]
+                raw_details = parts[1].strip()
+                amount_of_shares = re.search(r"\d+", raw_details).group()
+                type_of_shares_match = re.search(r"(.*?)\s+shares", raw_details.lower())
+                type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
 
-            csv_data.append([company_name, company_number, statement_date, shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
+                shareholder_name = ""
+                j = i + 1
+                while j < len(lines):
+                    next_line = lines[j].strip()
+                    if next_line.startswith("Name:"):
+                        shareholder_name = next_line.split(":")[1].strip()
+                        break
+                    j += 1
 
-    # Use StringIO for text-based CSV creation
+                csv_data.append([
+                    company_name, company_number, statement_date,
+                    shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
+                ])
+
     csv_buffer = StringIO()
     writer = csv.writer(csv_buffer)
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer
 
-
-
 def main():
     st.title("Company Confirmation Statement Downloader")
 
-    # Initialize session state
-    if "pdf_content" not in st.session_state:
-        st.session_state.pdf_content = None
-    if "txt_content" not in st.session_state:
-        st.session_state.txt_content = None
-    if "csv_content" not in st.session_state:
-        st.session_state.csv_content = None
-    if "legal_name" not in st.session_state:
-        st.session_state.legal_name = ""
-
-    # Input for Company Name
-    legal_name = st.text_input("Enter Company Legal Name:", st.session_state.legal_name)
+    legal_name = st.text_input("Enter Company Legal Name:", "")
 
     if st.button("Process"):
         if not legal_name.strip():
             st.error("Please enter a valid company name.")
             return
 
-        # Store the entered legal name in session state
-        st.session_state.legal_name = legal_name
-
-        # Fetch the Company Number
         api_key = st.secrets["API"]["key"]
         st.info(f"Fetching company number for: {legal_name}")
         company_number = get_company_number(legal_name, api_key)
         if not company_number:
+            st.error("Company not found.")
             return
 
-        # Fetch the Transaction ID
-        st.info("Fetching confirmation statement transaction ID...")
-        transaction_id = get_confirmation_statement_transaction_id(company_number, api_key)
-        if not transaction_id:
+        st.info("Fetching confirmation statement transaction IDs...")
+        transaction_ids = get_confirmation_statement_transaction_ids(company_number, api_key)
+        if not transaction_ids:
+            st.error("No confirmation statements found.")
             return
 
-        # Download PDF
-        st.info("Downloading confirmation statement PDF...")
-        pdf_content = download_pdf(company_number, transaction_id)
-        if not pdf_content:
+        st.info("Downloading confirmation statement PDFs...")
+        pdf_contents = []
+        text_contents = []
+        for transaction_id in transaction_ids:
+            pdf_content = download_pdf(company_number, transaction_id)
+            if pdf_content:
+                pdf_contents.append(pdf_content)
+                text_contents.append(extract_text_from_pdf(pdf_content))
+
+        if not pdf_contents:
+            st.error("Failed to download any PDFs.")
             return
 
-        # Save the downloaded PDF content in session state
-        st.session_state.pdf_content = pdf_content
+        st.info("Generating consolidated CSV...")
+        csv_buffer = process_text_to_csv(text_contents, legal_name)
 
-        # Extract text and save as .txt
-        st.info("Extracting text from PDF...")
-        text_content = extract_text_from_pdf(pdf_content)
-        st.session_state.txt_content = text_content
+        # Individual download buttons for each PDF and TXT
+        for idx, (pdf_content, text_content) in enumerate(zip(pdf_contents, text_contents)):
+            st.download_button(
+                label=f"Download PDF {idx + 1}",
+                data=pdf_content,
+                file_name=f"{legal_name}_confirmation_statement_{idx + 1}.pdf",
+                mime="application/pdf"
+            )
 
-        # Process text to CSV
-        st.info("Generating CSV from text...")
-        csv_buffer = process_text_to_csv(text_content)
-        st.session_state.csv_content = csv_buffer.getvalue()
+            st.download_button(
+                label=f"Download TXT {idx + 1}",
+                data=text_content,
+                file_name=f"{legal_name}_confirmation_statement_{idx + 1}.txt",
+                mime="text/plain"
+            )
 
-        st.success("Processing complete! You can download the files below.")
-
-    # Display download buttons if files are available
-    if st.session_state.pdf_content:
+        # Download button for consolidated CSV
         st.download_button(
-            label=f"Download {st.session_state.legal_name} PDF File",
-            data=st.session_state.pdf_content,
-            file_name=f"{st.session_state.legal_name}_confirmation_statement.pdf",
-            mime="application/pdf"
-        )
-
-    if st.session_state.txt_content:
-        st.download_button(
-            label=f"Download {st.session_state.legal_name} TXT File",
-            data=st.session_state.txt_content,
-            file_name=f"{st.session_state.legal_name}_confirmation_statement.txt",
-            mime="text/plain"
-        )
-
-    if st.session_state.csv_content:
-        st.download_button(
-            label=f"Download {st.session_state.legal_name} CSV File",
-            data=st.session_state.csv_content,
-            file_name=f"{st.session_state.legal_name}_confirmation_statement.csv",
+            label=f"Download Consolidated CSV for {legal_name}",
+            data=csv_buffer.getvalue(),
+            file_name=f"{legal_name}_confirmation_statements.csv",
             mime="text/csv"
         )
-
-
 
 if __name__ == "__main__":
     main()
