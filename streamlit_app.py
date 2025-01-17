@@ -60,39 +60,26 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     csv_data = []
     statement_date = ""
 
-    # Check for empty text content
-    if not text_content or not text_content.strip():
-        st.error("Text content is empty or invalid.")
-        return StringIO(), None
+    if not text_content.strip():
+        return StringIO(), None  # Return an empty CSV if no text content
 
     # Combine lines intelligently
     lines = text_content.split("\n")
     combined_text = "\n".join(lines)
 
-    # Debugging: Show combined text
-    st.write(f"Combined Text for Statement {statement_number}:", combined_text)
-
     # Look for the Statement Date pattern
     statement_date_match = re.search(r"Confirmation\s+Statement\s+date:\s*(\d{2}/\d{2}/\d{4})", combined_text, re.IGNORECASE)
     if statement_date_match:
         statement_date = statement_date_match.group(1)
-    else:
-        st.warning(f"Statement date not found in text content for Statement {statement_number}.")
-        statement_date = "N/A"
 
-    # Add headers and top-level details in Column A
-    csv_data.append(["Company Legal Name"])  # Line 1
-    csv_data.append([legal_name])           # Line 2
-    csv_data.append([])                     # Blank row (Line 3)
-    csv_data.append(["Company Number"])     # Line 4
-    csv_data.append([company_number])       # Line 5
-    csv_data.append([])                     # Blank row (Line 6)
-    csv_data.append(["Statement Date"])     # Line 7
-    csv_data.append([statement_date])       # Line 8
-    csv_data.append([])                     # Blank row after the statement information
-
-    # Add headers for shareholder information
-    csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])  # Line 9
+    # Add headers and top-level details
+    csv_data.append(["Company Legal Name", legal_name])
+    csv_data.append([])
+    csv_data.append(["Company Number", company_number])
+    csv_data.append([])
+    csv_data.append(["Statement Date", statement_date])
+    csv_data.append([])
+    csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
 
     # Extract shareholding details
     for i, line in enumerate(lines):
@@ -121,9 +108,6 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
                 shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
             ])
 
-    # Debugging: Show final CSV data
-    st.write(f"Generated CSV Data for Statement {statement_number}:", csv_data)
-
     # Create CSV buffer
     csv_buffer = StringIO()
     writer = csv.writer(csv_buffer)
@@ -131,40 +115,37 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     csv_buffer.seek(0)
     return csv_buffer, statement_date
 
-
-
 def consolidate_csvs(csv_buffers):
-    """Consolidate multiple CSV buffers as complete tables joined horizontally with one column gap."""
+    """Consolidate multiple CSV buffers by treating them as individual tables."""
     consolidated_rows = []
-
-    # Convert each CSV buffer into a list of rows
-    tables = []
     max_rows = 0
 
+    tables = []
+
+    # Extract rows from each CSV buffer
     for buf in csv_buffers:
         buf.seek(0)
         rows = list(csv.reader(buf))
         tables.append(rows)
         max_rows = max(max_rows, len(rows))
 
-    # Consolidate all tables horizontally
-    for row_index in range(max_rows):
-        consolidated_row = []
+    # Combine tables horizontally
+    for i in range(max_rows):
+        row = []
         for table in tables:
-            if row_index < len(table):
-                consolidated_row.extend(table[row_index] + [""])  # Add one column gap
+            if i < len(table):
+                row.extend(table[i])
             else:
-                # Add empty cells if the current table has fewer rows
-                consolidated_row.extend([""] * (len(table[0]) + 1))  # Add one column gap
-        consolidated_rows.append(consolidated_row[:-1])  # Remove the last extra gap
+                row.extend([""] * len(table[0]))
+            row.append("")  # Add a single-column gap
+        consolidated_rows.append(row[:-1])  # Remove last column gap
 
-    # Write the consolidated rows to a CSV buffer
+    # Write to a new CSV buffer
     consolidated_buffer = StringIO()
     writer = csv.writer(consolidated_buffer)
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
-
 
 def main():
     st.title("Company Confirmation Statement Downloader")
