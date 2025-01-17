@@ -135,8 +135,8 @@ def consolidate_csvs(csv_buffers):
 
     # Align headers with a three-column gap
     for header_block in header_blocks:
-        for row in header_block:
-            consolidated_rows.append(row + ["", "", ""])
+        consolidated_rows.append(header_block[0] + ["", "", ""])  # Header Row 1
+        consolidated_rows.append(header_block[1] + ["", "", ""])  # Header Row 2
 
     # Add a blank row after headers
     consolidated_rows.append([])
