@@ -122,22 +122,16 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             # Collect shareholder data
             shareholder_data.append([shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
 
-    # Ensure shareholder headers exist and data starts from C2:F2
-    for idx, row in enumerate(shareholder_data):
-        if idx == 0:  # Add headers in C1:F1
-            csv_data[0].extend([""] * 1 + row)
-        else:  # Add data starting from C2:F2
-            if len(csv_data) <= 1 + idx:  # Ensure rows exist
-                csv_data.append([""] * 8)
-            csv_data[1 + idx].extend([""] * 1 + row)
+    # Append shareholder data under B2:E2 (headers are in B1:E1)
+    for row in shareholder_data:
+        csv_data.append([""] + row)  # Append data starting from Column B
 
     # Create CSV buffer
     csv_buffer = StringIO()
     writer = csv.writer(csv_buffer)
     writer.writerows(csv_data)
     csv_buffer.seek(0)
-    return csv_buffer
-
+    return csv_buffer, statement_date
 
 
 
