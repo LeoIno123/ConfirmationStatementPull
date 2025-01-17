@@ -73,7 +73,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
         statement_date = statement_date_match.group(1)
 
     # Add headers and top-level details
-    csv_data.append(["Company Legal Name", legal_name, "", "Company Number", company_number, "", "Statement Date", statement_date])
+    csv_data.append(["Company Legal Name", legal_name, "Company Number", company_number, "Statement Date", statement_date])
     csv_data.append([])  # Blank row
     csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])  # Data headers
 
@@ -124,19 +124,19 @@ def consolidate_csvs(csv_buffers):
         buf.seek(0)
         rows = list(csv.reader(buf))
 
-        # Headers (First 2 Rows: Company Info)
-        header_block = rows[:2]
+        # Headers (First Row: Statement Info)
+        header_block = rows[:1]
         header_blocks.append(header_block)
 
         # Data Rows (Starting from Row 3)
-        data = rows[3:] if len(rows) > 3 else []
+        data = rows[2:] if len(rows) > 2 else []
         max_data_rows = max(max_data_rows, len(data))
         data_tables.append(data)
 
     # Align headers with a three-column gap
     for header_block in header_blocks:
-        consolidated_rows.append(header_block[0] + ["", "", ""])  # Header Row 1
-        consolidated_rows.append(header_block[1] + ["", "", ""])  # Header Row 2
+        for row in header_block:
+            consolidated_rows.append(row + ["", "", ""])  # Add a three-column gap
 
     # Add a blank row after headers
     consolidated_rows.append([])
