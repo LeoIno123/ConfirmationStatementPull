@@ -55,45 +55,39 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def process_text_to_csv(text_content, statement_number, legal_name, company_number):
-    """Process text content to generate a CSV with statement info in Column A and shareholder data starting in Column B."""
+def process_text_to_csv(text_content):
+    """Process text content to generate a CSV."""
     lines = text_content.split("\n")
 
     # Create a list to store CSV data
-    csv_data = [
-        ["Company Legal Name"],  # Statement Info starts in Column A
-        [legal_name],
-        [],  # Blank row
-        ["Company Number"],
-        [company_number],
-        [],  # Blank row
-        ["Statement Date"],
-        [""],  # Placeholder for statement date
-        [],  # Blank row separating statement info and shareholder data
-    ]
+    csv_data = []
 
-    # Initialize placeholders for extracted statement date
-    statement_date = ""
+    # Add Statement Information to Column A
+    csv_data.append(["Company Legal Name"])  # Header
+    csv_data.append(["robin ai limited"])  # Value
+    csv_data.append([])  # Blank row
+    csv_data.append(["Company Number"])  # Header
+    csv_data.append(["11400135"])  # Value
+    csv_data.append([])  # Blank row
+    csv_data.append(["Statement Date"])  # Header
+    csv_data.append(["26/01/2024"])  # Value
+    csv_data.append([])  # Blank row
 
-    # Extract company information and shareholder details
-    shareholder_data = [["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]]
+    # Shareholder data headers in Column B onwards
+    csv_data.append(["", "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
 
+    # Extract shareholder data
     for i, line in enumerate(lines):
         line = line.strip()
 
-        if line.startswith("Confirmation Statement date:"):
-            statement_date = line.split(":")[1].strip()
-            csv_data[7][0] = statement_date  # Update the Statement Date row in Column A
-
         if line.startswith("Shareholding"):
-            # Extract shareholder data
+            # Extract Shareholding details
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
             shareholding_details = parts[1].strip().split()
-            amount_of_shares = shareholding_details[0]
-            raw_type_of_shares = " ".join(shareholding_details[1:])
+            amount_of_shares, raw_type_of_shares = shareholding_details[0], " ".join(shareholding_details[1:])
 
-            # Extract only the portion before "shares"
+            # Extract Type of Shares
             type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
             type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown Type"
 
@@ -107,30 +101,15 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
                     break
                 j += 1
 
-            # Append shareholder data
-            shareholder_data.append(
-                [shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"]
-            )
-
-    # Add shareholder data starting from Column B
-    for idx, row in enumerate(shareholder_data):
-        if idx == 0:  # Add header row for shareholder data
-            csv_data[8].extend(row)
-        else:
-            if len(csv_data) <= 8 + idx:
-                csv_data.append([""] * 8)  # Add empty rows for alignment
-            csv_data[8 + idx].extend([""] + row)  # Align to Column B
+            # Append shareholder data in Columns B-E
+            csv_data.append(["", shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
 
     # Use StringIO for text-based CSV creation
     csv_buffer = StringIO()
     writer = csv.writer(csv_buffer)
     writer.writerows(csv_data)
     csv_buffer.seek(0)
-    return csv_buffer, statement_date
-
-
-
-
+    return csv_buffer
 
 
 
@@ -223,9 +202,7 @@ def main():
             st.session_state.text_files.append((txt_name, text_content))
 
             # Process text into CSV format
-            csv_buffer, statement_date = process_text_to_csv(
-                text_content, idx + 1, legal_name, company_number
-            )
+            csv_buffer = process_text_to_csv(text_content)
             st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
 
@@ -249,6 +226,7 @@ def main():
             file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
         )
+
 
 if __name__ == "__main__":
     main()
