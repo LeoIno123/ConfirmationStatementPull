@@ -73,9 +73,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
         statement_date = statement_date_match.group(1)
 
     # Add headers and top-level details
-    csv_data.append(["", "Company Legal Name", legal_name])
-    csv_data.append(["", "Company Number", company_number])
-    csv_data.append(["", "Statement Date", statement_date])
+    csv_data.append(["Company Legal Name", legal_name, "", "Company Number", company_number, "", "Statement Date", statement_date])
     csv_data.append([])  # Blank row
     csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])  # Data headers
 
@@ -119,32 +117,26 @@ def consolidate_csvs(csv_buffers):
     max_data_rows = 0
 
     # Collect headers and data for each statement
-    header_rows = []
+    header_blocks = []
     data_tables = []
 
     for buf in csv_buffers:
         buf.seek(0)
         rows = list(csv.reader(buf))
 
-        # Headers (First 6 Rows: Company Info and Blank Row)
-        header = rows[:6]
-        header_rows.append(header)
+        # Headers (First 2 Rows: Company Info)
+        header_block = rows[:2]
+        header_blocks.append(header_block)
 
-        # Data Rows (Starting from Row 6)
-        data = rows[6:] if len(rows) > 6 else []
+        # Data Rows (Starting from Row 3)
+        data = rows[3:] if len(rows) > 3 else []
         max_data_rows = max(max_data_rows, len(data))
         data_tables.append(data)
 
     # Align headers with a three-column gap
-    aligned_headers = []
-    for header in header_rows:
-        aligned_header = []
-        for row in header:
-            aligned_header.extend(row + ["", "", ""])  # Add a three-column gap
-        aligned_headers.append(aligned_header[:-3])  # Remove the last extra gap
-
-    for header in zip(*aligned_headers):
-        consolidated_rows.append(header)
+    for header_block in header_blocks:
+        for row in header_block:
+            consolidated_rows.append(row + ["", "", ""])
 
     # Add a blank row after headers
     consolidated_rows.append([])
@@ -157,7 +149,7 @@ def consolidate_csvs(csv_buffers):
                 row.extend(data_table[i] + [""])  # Add a single-column gap
             else:
                 # Add empty cells matching the width of the data table
-                row.extend([""] * (len(data_table[0]) + 1) if data_table else [""] * 5)
+                row.extend([""] * (len(data_table[0]) + 1) if data_table else [""] * 4)
         consolidated_rows.append(row[:-1])  # Remove last extra gap
 
     # Write the consolidated rows to a CSV buffer
