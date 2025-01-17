@@ -72,14 +72,19 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     if statement_date_match:
         statement_date = statement_date_match.group(1)
 
-    # Add headers and top-level details
-    csv_data.append(["Company Legal Name", legal_name])
-    csv_data.append([])
-    csv_data.append(["Company Number", company_number])
-    csv_data.append([])
-    csv_data.append(["Statement Date", statement_date])
-    csv_data.append([])
-    csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
+    # Add headers and top-level details in Column A
+    csv_data.append(["Company Legal Name"])
+    csv_data.append([legal_name])
+    csv_data.append([])  # Blank row
+    csv_data.append(["Company Number"])
+    csv_data.append([company_number])
+    csv_data.append([])  # Blank row
+    csv_data.append(["Statement Date"])
+    csv_data.append([statement_date])
+    csv_data.append([])  # Blank row
+
+    # Add header for shareholder data
+    csv_data[0].extend(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
 
     # Extract shareholding details
     for i, line in enumerate(lines):
@@ -90,7 +95,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
             shareholding_number = parts[0].split()[-1]
             raw_details = parts[1].strip()
             amount_of_shares = re.search(r"\d+", raw_details).group() if re.search(r"\d+", raw_details) else "Unknown"
-            
+
             # Extract Type of Shares between Amount of Shares and "shares"
             type_of_shares_match = re.search(rf"{amount_of_shares}\s+(.*?)\s+shares", raw_details, re.IGNORECASE)
             type_of_shares = type_of_shares_match.group(1).strip().title() if type_of_shares_match else "Unknown"
@@ -105,6 +110,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
                 j += 1
 
             csv_data.append([
+                "", "", "",  # Empty cells for the first three columns
                 shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
             ])
 
@@ -114,6 +120,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 def consolidate_csvs(csv_buffers):
     """Consolidate multiple CSV buffers by treating them as individual tables."""
