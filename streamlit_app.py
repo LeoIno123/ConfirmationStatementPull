@@ -55,7 +55,7 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def process_text_to_csv(text_content, statement_number, legal_name, company_number):
+def process_text_to_csv(text_content, legal_name, company_number):
     """Process text content to generate a CSV for a single statement."""
     csv_data = []
     statement_date = ""
@@ -73,9 +73,8 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
         statement_date = statement_date_match.group(1)
 
     # Add headers and top-level details
-    csv_data.append(["Company Legal Name", legal_name, "Company Number", company_number, "Statement Date", statement_date])
-    csv_data.append([])  # Blank row
-    csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])  # Data headers
+    csv_data.append(["Company Legal Name", "Company Number", "Statement Date", "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
+    csv_data.append([legal_name, company_number, statement_date])  # Only populate the first row of statement info
 
     # Extract shareholding details
     for i, line in enumerate(lines):
@@ -101,6 +100,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
                 j += 1
 
             csv_data.append([
+                "", "", "",  # Leave statement info columns blank
                 shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
             ])
 
@@ -117,26 +117,26 @@ def consolidate_csvs(csv_buffers):
     max_data_rows = 0
 
     # Collect headers and data for each statement
-    header_blocks = []
+    headers = []
     data_tables = []
 
     for buf in csv_buffers:
         buf.seek(0)
         rows = list(csv.reader(buf))
 
-        # Headers (First Row: Statement Info)
-        header_block = rows[:1]
-        header_blocks.append(header_block)
+        # Headers (First 2 Rows: Company Info)
+        header = rows[:2]
+        headers.append(header)
 
-        # Data Rows (Starting from Row 3)
+        # Data Rows (Starting from Row 2)
         data = rows[2:] if len(rows) > 2 else []
         max_data_rows = max(max_data_rows, len(data))
         data_tables.append(data)
 
     # Align headers with a three-column gap
-    for header_block in header_blocks:
-        for row in header_block:
-            consolidated_rows.append(row + ["", "", ""])  # Add a three-column gap
+    for header in headers:
+        for row in header:
+            consolidated_rows.append(row + ["", "", ""])
 
     # Add a blank row after headers
     consolidated_rows.append([])
@@ -209,7 +209,7 @@ def main():
             text_content = extract_text_from_pdf(pdf_content)
             st.session_state.text_files.append((txt_name, text_content))
             csv_buffer, _ = process_text_to_csv(
-                text_content, idx + 1, legal_name, company_number
+                text_content, legal_name, company_number
             )
             st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
