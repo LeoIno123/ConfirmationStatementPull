@@ -114,29 +114,28 @@ def process_text_to_csv(text_content):
 
 
 def consolidate_csvs(csv_buffers):
-    """Consolidate multiple CSV buffers by treating them as individual tables."""
+    """Consolidate multiple CSV buffers as individual tables joined horizontally with a single-column gap."""
     consolidated_rows = []
     max_rows = 0
 
-    tables = []
-
     # Extract rows from each CSV buffer
+    tables = []
     for buf in csv_buffers:
         buf.seek(0)
         rows = list(csv.reader(buf))
         tables.append(rows)
-        max_rows = max(max_rows, len(rows))
+        max_rows = max(max_rows, len(rows))  # Track the maximum number of rows across all tables
 
     # Combine tables horizontally
     for i in range(max_rows):
         row = []
         for table in tables:
             if i < len(table):
-                row.extend(table[i])
+                row.extend(table[i])  # Add the row if it exists in the table
             else:
-                row.extend([""] * len(table[0]))
+                row.extend([""] * len(table[0]))  # Fill with empty cells if the table is shorter
             row.append("")  # Add a single-column gap
-        consolidated_rows.append(row[:-1])  # Remove last column gap
+        consolidated_rows.append(row[:-1])  # Remove the last column gap
 
     # Write to a new CSV buffer
     consolidated_buffer = StringIO()
@@ -144,6 +143,7 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 def main():
     st.title("Company Confirmation Statement Downloader")
