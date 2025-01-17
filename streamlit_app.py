@@ -55,7 +55,7 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def process_text_to_csv(text_content, legal_name, company_number):
+def process_text_to_csv(text_content, statement_number, legal_name, company_number):
     """Process text content to generate a CSV for a single statement."""
     csv_data = []
     statement_date = ""
@@ -72,9 +72,19 @@ def process_text_to_csv(text_content, legal_name, company_number):
     if statement_date_match:
         statement_date = statement_date_match.group(1)
 
-    # Add headers and top-level details
-    csv_data.append(["Company Legal Name", "Company Number", "Statement Date", "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
-    csv_data.append([legal_name, company_number, statement_date])  # Only populate the first row of statement info
+    # Add headers and top-level details in Column A
+    csv_data.append(["Company Legal Name"])  # Line 1
+    csv_data.append([legal_name])           # Line 2
+    csv_data.append([])                     # Blank row (Line 3)
+    csv_data.append(["Company Number"])     # Line 4
+    csv_data.append([company_number])       # Line 5
+    csv_data.append([])                     # Blank row (Line 6)
+    csv_data.append(["Statement Date"])     # Line 7
+    csv_data.append([statement_date])       # Line 8
+    csv_data.append([])                     # Blank row after the statement information
+
+    # Add headers for shareholder information
+    csv_data.append(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])  # Line 9
 
     # Extract shareholding details
     for i, line in enumerate(lines):
@@ -100,7 +110,6 @@ def process_text_to_csv(text_content, legal_name, company_number):
                 j += 1
 
             csv_data.append([
-                "", "", "",  # Leave statement info columns blank
                 shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
             ])
 
@@ -110,6 +119,7 @@ def process_text_to_csv(text_content, legal_name, company_number):
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 def consolidate_csvs(csv_buffers):
     """Consolidate multiple CSV buffers as complete tables joined horizontally with one column gap."""
