@@ -74,24 +74,36 @@ def extract_text_from_pdf(pdf_content):
     return text_content
 
 def process_text_to_csv(text_content, legal_name, company_number, statement_number):
-    """Process text content to generate a CSV for an individual statement."""
+    """Process text content to generate a CSV with vertical and horizontal header alignment."""
     lines = text_content.split("\n")
+    
+    # Initialize CSV data
     csv_data = [
-        ["Company Legal Name"], [legal_name], [],
-        ["Company Number"], [company_number], [],
-        ["Statement Date"], [""], []  # Placeholder for the statement date
+        ["Company Legal Name"],  # Row 1, Column A
+        [legal_name],           # Row 2, Column A
+        ["Company Number"],     # Row 3, Column A
+        [company_number],       # Row 4, Column A
+        ["Statement Date"],     # Row 5, Column A
+        [""],                   # Row 6, Column A (Placeholder for statement date)
+        []                      # Blank row to separate vertical and horizontal headers
     ]
-
-    shareholder_data = [["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]]
+    
+    # Add horizontal headers for shareholder information
+    csv_data.append(["", "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
+    
     statement_date = ""
-
+    shareholder_data = []
+    
+    # Extract company information and shareholder details
     for i, line in enumerate(lines):
         line = line.strip()
-
+        
+        # Extract Statement Date
         if line.startswith("Confirmation Statement date:"):
             statement_date = line.split(":")[1].strip()
-            csv_data[6][0] = statement_date  # Set the statement date in the header
-
+            csv_data[5][0] = statement_date  # Update statement date in Column A
+        
+        # Extract Shareholder Data
         if line.startswith("Shareholding"):
             # Extract shareholder details
             parts = line.split(":")
@@ -101,9 +113,9 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             raw_type_of_shares = " ".join(shareholding_details[1:])
             type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
             type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
-            shareholder_name = ""
-
+            
             # Look for the shareholder name
+            shareholder_name = ""
             j = i + 1
             while j < len(lines):
                 next_line = lines[j].strip()
@@ -111,25 +123,24 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     shareholder_name = next_line.split(":")[1].strip()
                     break
                 j += 1
-
+            
             # Append shareholder data
             shareholder_data.append([shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
-
-    # Merge statement and shareholder data into one table
+    
+    # Append shareholder data to CSV
     for idx, row in enumerate(shareholder_data):
-        if idx == 0:
-            csv_data[8].extend(row)  # Add header row starting in Column B
+        if len(csv_data) <= 8 + idx:  # Ensure alignment for shareholder rows
+            csv_data.append([""] + row)  # Add blank cell for Column A alignment
         else:
-            if len(csv_data) <= 8 + idx:
-                csv_data.append([""] * 8)  # Ensure alignment
-            csv_data[8 + idx].extend([""] + row)  # Append shareholder data starting from Column B
-
+            csv_data[8 + idx].extend(row)
+    
     # Create CSV buffer
     csv_buffer = StringIO()
     writer = csv.writer(csv_buffer)
     writer.writerows(csv_data)
     csv_buffer.seek(0)
-    return csv_buffer
+    return csv_buffer, statement_date
+
 
 def consolidate_csvs(csv_buffers):
     """Consolidate individual CSV buffers as horizontally joined tables."""
