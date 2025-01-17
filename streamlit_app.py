@@ -112,45 +112,29 @@ def process_text_to_csv(text_content, legal_name, company_number):
     return csv_buffer, statement_date
 
 def consolidate_csvs(csv_buffers):
-    """Consolidate multiple CSV buffers with proper alignment and spacing."""
+    """Consolidate multiple CSV buffers as complete tables joined horizontally with one column gap."""
     consolidated_rows = []
-    max_data_rows = 0
 
-    # Collect headers and data for each statement
-    headers = []
-    data_tables = []
+    # Convert each CSV buffer into a list of rows
+    tables = []
+    max_rows = 0
 
     for buf in csv_buffers:
         buf.seek(0)
         rows = list(csv.reader(buf))
+        tables.append(rows)
+        max_rows = max(max_rows, len(rows))
 
-        # Headers (First 2 Rows: Company Info)
-        header = rows[:2]
-        headers.append(header)
-
-        # Data Rows (Starting from Row 2)
-        data = rows[2:] if len(rows) > 2 else []
-        max_data_rows = max(max_data_rows, len(data))
-        data_tables.append(data)
-
-    # Align headers with a three-column gap
-    for header in headers:
-        for row in header:
-            consolidated_rows.append(row + ["", "", ""])
-
-    # Add a blank row after headers
-    consolidated_rows.append([])
-
-    # Consolidate data tables with a single-column gap
-    for i in range(max_data_rows):
-        row = []
-        for data_table in data_tables:
-            if i < len(data_table):
-                row.extend(data_table[i] + [""])  # Add a single-column gap
+    # Consolidate all tables horizontally
+    for row_index in range(max_rows):
+        consolidated_row = []
+        for table in tables:
+            if row_index < len(table):
+                consolidated_row.extend(table[row_index] + [""])  # Add one column gap
             else:
-                # Add empty cells matching the width of the data table
-                row.extend([""] * (len(data_table[0]) + 1) if data_table else [""] * 4)
-        consolidated_rows.append(row[:-1])  # Remove last extra gap
+                # Add empty cells if the current table has fewer rows
+                consolidated_row.extend([""] * (len(table[0]) + 1))  # Add one column gap
+        consolidated_rows.append(consolidated_row[:-1])  # Remove the last extra gap
 
     # Write the consolidated rows to a CSV buffer
     consolidated_buffer = StringIO()
@@ -158,6 +142,7 @@ def consolidate_csvs(csv_buffers):
     writer.writerows(consolidated_rows)
     consolidated_buffer.seek(0)
     return consolidated_buffer
+
 
 def main():
     st.title("Company Confirmation Statement Downloader")
