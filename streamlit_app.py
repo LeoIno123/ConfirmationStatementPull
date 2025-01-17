@@ -219,7 +219,9 @@ def main():
             st.session_state.text_files.append((txt_name, text_content))
 
             # Process text into CSV format
-            csv_buffer = process_text_to_csv(text_content)
+            csv_buffer, _ = process_text_to_csv(
+                text_content, idx + 1, legal_name, company_number
+            )
             st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
 
@@ -245,6 +247,6 @@ def main():
         )
 
 
-
 if __name__ == "__main__":
     main()
+
