@@ -72,7 +72,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     if statement_date_match:
         statement_date = statement_date_match.group(1)
 
-    # Add headers and top-level details in Column A
+    # Add headers and statement information to column A
     csv_data.append(["Company Legal Name"])
     csv_data.append([legal_name])
     csv_data.append([])  # Blank row
@@ -83,10 +83,10 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     csv_data.append([statement_date])
     csv_data.append([])  # Blank row
 
-    # Add header for shareholder data
+    # Add Shareholder data header at line 1 starting Column C
     csv_data[0].extend(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
 
-    # Extract shareholding details
+    # Extract shareholding details and append to the rows
     for i, line in enumerate(lines):
         line = line.strip()
 
@@ -95,7 +95,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
             shareholding_number = parts[0].split()[-1]
             raw_details = parts[1].strip()
             amount_of_shares = re.search(r"\d+", raw_details).group() if re.search(r"\d+", raw_details) else "Unknown"
-
+            
             # Extract Type of Shares between Amount of Shares and "shares"
             type_of_shares_match = re.search(rf"{amount_of_shares}\s+(.*?)\s+shares", raw_details, re.IGNORECASE)
             type_of_shares = type_of_shares_match.group(1).strip().title() if type_of_shares_match else "Unknown"
@@ -109,10 +109,11 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
                     break
                 j += 1
 
-            csv_data.append([
-                "", "", "",  # Empty cells for the first three columns
-                shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
-            ])
+            # Append shareholder data starting at Column C
+            if len(csv_data) < 10:
+                csv_data.append(["", "", shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
+            else:
+                csv_data.append(["", "", "", shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
 
     # Create CSV buffer
     csv_buffer = StringIO()
@@ -120,6 +121,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 def consolidate_csvs(csv_buffers):
