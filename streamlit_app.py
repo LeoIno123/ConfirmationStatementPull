@@ -61,24 +61,28 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
 
     # Initialize CSV data
     csv_data = [
-        ["Company Legal Name", legal_name],
+        ["Company Legal Name"],  # Statement Information Header
+        [legal_name],  # Statement Information Value
         [],
-        ["Company Number", company_number],
+        ["Company Number"],
+        [company_number],
         [],
-        ["Statement Date", ""],  # Placeholder for the statement date
+        ["Statement Date"],
+        [""],  # Placeholder for the statement date
         [],
-        ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"],
     ]
 
     statement_date = ""  # Initialize statement date
 
     # Extract statement date and shareholder details
+    shareholder_data = [["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]]
+
     for i, line in enumerate(lines):
         line = line.strip()
 
         if line.startswith("Confirmation Statement date:"):
             statement_date = line.split(":")[1].strip()
-            csv_data[4][1] = statement_date  # Update statement date in the header
+            csv_data[7][0] = statement_date  # Update statement date in the header
 
         if line.startswith("Shareholding"):
             # Extract shareholding details
@@ -102,7 +106,17 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
                 j += 1
 
             # Append shareholder data
-            csv_data.append([shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
+            shareholder_data.append([
+                shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
+            ])
+
+    # Combine statement information and shareholder data
+    # Shift shareholder data to start from Column B
+    for idx, row in enumerate(shareholder_data):
+        if idx == 0:  # Header row
+            csv_data.append([""] + row)  # Add header to start at Column B
+        else:
+            csv_data.append([""] + row)  # Add data rows to start at Column B
 
     # Use StringIO for text-based CSV creation
     csv_buffer = StringIO()
@@ -110,6 +124,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 
