@@ -56,25 +56,26 @@ def extract_text_from_pdf(pdf_content):
     return text_content
 
 def process_text_to_csv(text_content, statement_number, legal_name, company_number):
-    """Process text content to generate a CSV."""
+    """Process text content to generate a CSV with statement info in Column A and shareholder data starting in Column B."""
     lines = text_content.split("\n")
 
-    # Initialize CSV data
+    # Create a list to store CSV data
     csv_data = [
-        ["Company Legal Name"],  # Statement Information Header
-        [legal_name],  # Statement Information Value
-        [],
+        ["Company Legal Name"],  # Statement Info starts in Column A
+        [legal_name],
+        [],  # Blank row
         ["Company Number"],
         [company_number],
-        [],
+        [],  # Blank row
         ["Statement Date"],
-        [""],  # Placeholder for the statement date
-        [],
+        [""],  # Placeholder for statement date
+        [],  # Blank row separating statement info and shareholder data
     ]
 
-    statement_date = ""  # Initialize statement date
+    # Initialize placeholders for extracted statement date
+    statement_date = ""
 
-    # Extract statement date and shareholder details
+    # Extract company information and shareholder details
     shareholder_data = [["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]]
 
     for i, line in enumerate(lines):
@@ -82,14 +83,15 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
 
         if line.startswith("Confirmation Statement date:"):
             statement_date = line.split(":")[1].strip()
-            csv_data[7][0] = statement_date  # Update statement date in the header
+            csv_data[7][0] = statement_date  # Update the Statement Date row in Column A
 
         if line.startswith("Shareholding"):
-            # Extract shareholding details
+            # Extract shareholder data
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
             shareholding_details = parts[1].strip().split()
-            amount_of_shares, raw_type_of_shares = shareholding_details[0], " ".join(shareholding_details[1:])
+            amount_of_shares = shareholding_details[0]
+            raw_type_of_shares = " ".join(shareholding_details[1:])
 
             # Extract only the portion before "shares"
             type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
@@ -106,17 +108,18 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
                 j += 1
 
             # Append shareholder data
-            shareholder_data.append([
-                shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
-            ])
+            shareholder_data.append(
+                [shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"]
+            )
 
-    # Combine statement information and shareholder data
-    # Shift shareholder data to start from Column B
+    # Add shareholder data starting from Column B
     for idx, row in enumerate(shareholder_data):
-        if idx == 0:  # Header row
-            csv_data.append([""] + row)  # Add header to start at Column B
+        if idx == 0:  # Add header row for shareholder data
+            csv_data[8].extend(row)
         else:
-            csv_data.append([""] + row)  # Add data rows to start at Column B
+            if len(csv_data) <= 8 + idx:
+                csv_data.append([""] * 8)  # Add empty rows for alignment
+            csv_data[8 + idx].extend([""] + row)  # Align to Column B
 
     # Use StringIO for text-based CSV creation
     csv_buffer = StringIO()
@@ -124,6 +127,7 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 
@@ -179,86 +183,65 @@ def main():
     legal_name = st.text_input("Enter Company Legal Name:", "")
 
     if st.button("Process"):
-        # Validate input
         if not legal_name.strip():
             st.error("Please enter a valid company name.")
             return
 
-        # Retrieve API key from secrets
+        # Fetch company details using API key
         api_key = st.secrets["API"]["key"]
-
-        # Get company number using the legal name
         company_number = get_company_number(legal_name, api_key)
         if not company_number:
             st.error("Company not found.")
             return
 
-        # Fetch the latest transaction IDs for CS01 type
+        # Get transaction IDs for confirmation statements
         transaction_ids = get_confirmation_statement_transaction_ids(company_number, api_key)
         if not transaction_ids:
             st.error("No confirmation statements found.")
             return
 
-        # Clear session state for new processing
+        # Reset session state
         st.session_state.pdf_files = []
         st.session_state.text_files = []
         st.session_state.csv_files = []
         csv_buffers = []
 
-        # Process each confirmation statement
         for idx, transaction_id in enumerate(transaction_ids):
+            # Download PDF and extract text
             pdf_content = download_pdf(company_number, transaction_id)
             if not pdf_content:
                 continue
 
-            # Process the files
+            # File names
             pdf_name = f"{legal_name}_statement_{idx + 1}.pdf"
             txt_name = f"{legal_name}_statement_{idx + 1}.txt"
             csv_name = f"{legal_name}_statement_{idx + 1}.csv"
 
-            # Save PDF content to session state
+            # Store PDFs and text files
             st.session_state.pdf_files.append((pdf_name, pdf_content))
-
-            # Extract text and process into CSV
             text_content = extract_text_from_pdf(pdf_content)
             st.session_state.text_files.append((txt_name, text_content))
 
+            # Process text into CSV format
             csv_buffer, statement_date = process_text_to_csv(
                 text_content, idx + 1, legal_name, company_number
             )
-
             st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
 
-        # Consolidate all individual CSVs into a single table
+        # Consolidate CSVs into a single file
         st.session_state.consolidated_csv = consolidate_csvs(csv_buffers).getvalue()
 
-    # Add download buttons for each file
+    # Add download buttons
     for pdf_name, pdf_content in st.session_state.pdf_files:
-        st.download_button(
-            label=f"Download {pdf_name}",
-            data=pdf_content,
-            file_name=pdf_name,
-            mime="application/pdf"
-        )
+        st.download_button(label=f"Download {pdf_name}", data=pdf_content, file_name=pdf_name, mime="application/pdf")
 
     for txt_name, txt_content in st.session_state.text_files:
-        st.download_button(
-            label=f"Download {txt_name}",
-            data=txt_content,
-            file_name=txt_name,
-            mime="text/plain"
-        )
+        st.download_button(label=f"Download {txt_name}", data=txt_content, file_name=txt_name, mime="text/plain")
 
     for csv_name, csv_content in st.session_state.csv_files:
-        st.download_button(
-            label=f"Download {csv_name}",
-            data=csv_content,
-            file_name=csv_name,
-            mime="text/csv"
-        )
+        st.download_button(label=f"Download {csv_name}", data=csv_content, file_name=csv_name, mime="text/csv")
 
-    # Download button for consolidated CSV
     if st.session_state.consolidated_csv:
         st.download_button(
             label=f"Download Consolidated CSV for {legal_name}",
@@ -266,7 +249,6 @@ def main():
             file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
         )
-
 
 if __name__ == "__main__":
     main()
