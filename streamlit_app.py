@@ -77,16 +77,17 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     """Process text content to generate a CSV for an individual statement."""
     lines = text_content.split("\n")
 
-    # Initialize CSV with Statement Information in Column A
+    # Statement info in column A
     csv_data = [
         ["Company Legal Name"], [legal_name], [],
         ["Company Number"], [company_number], [],
-        ["Statement Date"], [""], [],  # Placeholder for the statement date
+        ["Statement Date"], [""], []  # Placeholder for the statement date
     ]
 
-    # Shareholder data headers start in B1:E1
+    # Shareholder data headers in C1:F1
     shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
-    csv_data[0].extend([""] + shareholder_headers)  # Extend with headers starting from Column B
+    if len(csv_data[0]) < 4:  # Add horizontal headers only if not already present
+        csv_data[0].extend([""] * 1 + shareholder_headers)
 
     statement_date = ""
     shareholder_data = []  # To collect rows of shareholder information
@@ -94,13 +95,12 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     for i, line in enumerate(lines):
         line = line.strip()
 
-        # Find the Statement Date
-        if "Confirmation Statement date:" in line:
+        if line.startswith("Confirmation Statement date:"):
             statement_date = line.split(":")[1].strip()
-            csv_data[6][0] = statement_date  # Update the placeholder for the statement date
+            csv_data[7][0] = statement_date  # Update the placeholder for the statement date
 
-        # Extract Shareholder Information
         if line.startswith("Shareholding"):
+            # Extract shareholder details
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
             shareholding_details = parts[1].strip().split()
@@ -110,7 +110,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
             shareholder_name = ""
 
-            # Look for the Shareholder Name
+            # Look for the shareholder name
             j = i + 1
             while j < len(lines):
                 next_line = lines[j].strip()
@@ -119,19 +119,25 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     break
                 j += 1
 
-            # Append Shareholder Data
+            # Collect shareholder data
             shareholder_data.append([shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
 
-    # Append Shareholder Data under Headers (Starting from Row 2 in Columns B:E)
-    for row in shareholder_data:
-        csv_data.append([""] + row)  # Add empty cell in Column A, data starts from Column B
+    # Ensure shareholder headers exist and data starts from C2:F2
+    for idx, row in enumerate(shareholder_data):
+        if idx == 0:  # Add headers in C1:F1
+            csv_data[0].extend([""] * 1 + row)
+        else:  # Add data starting from C2:F2
+            if len(csv_data) <= 1 + idx:  # Ensure rows exist
+                csv_data.append([""] * 8)
+            csv_data[1 + idx].extend([""] * 1 + row)
 
     # Create CSV buffer
     csv_buffer = StringIO()
     writer = csv.writer(csv_buffer)
     writer.writerows(csv_data)
     csv_buffer.seek(0)
-    return csv_buffer, statement_date
+    return csv_buffer
+
 
 
 
@@ -248,7 +254,7 @@ def main():
             file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
         )
-        
+
 if __name__ == "__main__":
     main()
 
