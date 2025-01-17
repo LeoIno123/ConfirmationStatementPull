@@ -55,51 +55,51 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def process_text_to_csv(text_content, statement_number, legal_name, company_number):
-    """Process text content to generate a CSV for a single statement."""
-    csv_data = []
-    statement_date = ""
-
-    if not text_content.strip():
-        return StringIO(), None  # Return an empty CSV if no text content
-
-    # Combine lines intelligently
+def process_text_to_csv(text_content):
+    """Process text content to generate a CSV."""
     lines = text_content.split("\n")
-    combined_text = "\n".join(lines)
 
-    # Look for the Statement Date pattern
-    statement_date_match = re.search(r"Confirmation\s+Statement\s+date:\s*(\d{2}/\d{2}/\d{4})", combined_text, re.IGNORECASE)
-    if statement_date_match:
-        statement_date = statement_date_match.group(1)
+    # Create a list to store CSV data
+    csv_data = [
+        ["Company Legal Name"],  # Header for statement information
+        [],  # Blank row
+        ["Company Number"],
+        [],  # Blank row
+        ["Statement Date"],
+        [],  # Blank row
+    ]
 
-    # Add headers and statement information to column A
-    csv_data.append(["Company Legal Name"])
-    csv_data.append([legal_name])
-    csv_data.append([])  # Blank row
-    csv_data.append(["Company Number"])
-    csv_data.append([company_number])
-    csv_data.append([])  # Blank row
-    csv_data.append(["Statement Date"])
-    csv_data.append([statement_date])
-    csv_data.append([])  # Blank row
+    # Initialize placeholders for company information
+    company_name, company_number, statement_date = "", "", ""
 
-    # Add Shareholder data header at line 1 starting Column C
-    csv_data[0].extend(["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"])
-
-    # Extract shareholding details and append to the rows
+    # Extract company information and shareholder details
     for i, line in enumerate(lines):
         line = line.strip()
 
+        if line.startswith("Company Name:"):
+            company_name = line.split(":")[1].strip()
+            csv_data[0].append(company_name)  # Append value to the header row
+
+        if line.startswith("Company Number:"):
+            company_number = line.split(":")[1].strip()
+            csv_data[2].append(company_number)  # Append value to the header row
+
+        if line.startswith("Confirmation Statement date:"):
+            statement_date = line.split(":")[1].strip()
+            csv_data[4].append(statement_date)  # Append value to the header row
+
         if line.startswith("Shareholding"):
+            # Extract shareholder data
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
-            raw_details = parts[1].strip()
-            amount_of_shares = re.search(r"\d+", raw_details).group() if re.search(r"\d+", raw_details) else "Unknown"
-            
-            # Extract Type of Shares between Amount of Shares and "shares"
-            type_of_shares_match = re.search(rf"{amount_of_shares}\s+(.*?)\s+shares", raw_details, re.IGNORECASE)
-            type_of_shares = type_of_shares_match.group(1).strip().title() if type_of_shares_match else "Unknown"
+            shareholding_details = parts[1].strip().split()
+            amount_of_shares, raw_type_of_shares = shareholding_details[0], " ".join(shareholding_details[1:])
 
+            # Extract only the portion before "shares"
+            type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
+            type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown Type"
+
+            # Look for shareholder name
             shareholder_name = ""
             j = i + 1
             while j < len(lines):
@@ -109,18 +109,26 @@ def process_text_to_csv(text_content, statement_number, legal_name, company_numb
                     break
                 j += 1
 
-            # Append shareholder data starting at Column C
-            if len(csv_data) < 10:
-                csv_data.append(["", "", shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
-            else:
-                csv_data.append(["", "", "", shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
+            # Add a blank row to align with statement information
+            while len(csv_data) < 8:
+                csv_data.append([])
 
-    # Create CSV buffer
+            # Append shareholder data starting at Column C
+            if len(csv_data[7]) == 0:  # Add header for shareholder data
+                csv_data[7].extend(
+                    ["", "", "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
+                )
+            csv_data.append(
+                ["", "", shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"]
+            )
+
+    # Use StringIO for text-based CSV creation
     csv_buffer = StringIO()
     writer = csv.writer(csv_buffer)
     writer.writerows(csv_data)
     csv_buffer.seek(0)
-    return csv_buffer, statement_date
+    return csv_buffer
+
 
 
 
