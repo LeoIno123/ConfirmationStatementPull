@@ -162,7 +162,6 @@ def consolidate_csvs(csv_buffers):
     consolidated_buffer.seek(0)
     return consolidated_buffer
 
-
 def main():
     st.title("Company Confirmation Statement Downloader")
 
@@ -244,6 +243,7 @@ def main():
             file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
         )
+
 
 
 if __name__ == "__main__":
