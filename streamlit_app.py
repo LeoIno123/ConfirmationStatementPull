@@ -175,29 +175,37 @@ def main():
     if "consolidated_csv" not in st.session_state:
         st.session_state.consolidated_csv = ""
 
+    # Input for company legal name
     legal_name = st.text_input("Enter Company Legal Name:", "")
 
     if st.button("Process"):
+        # Validate input
         if not legal_name.strip():
             st.error("Please enter a valid company name.")
             return
 
+        # Retrieve API key from secrets
         api_key = st.secrets["API"]["key"]
+
+        # Get company number using the legal name
         company_number = get_company_number(legal_name, api_key)
         if not company_number:
             st.error("Company not found.")
             return
 
+        # Fetch the latest transaction IDs for CS01 type
         transaction_ids = get_confirmation_statement_transaction_ids(company_number, api_key)
         if not transaction_ids:
             st.error("No confirmation statements found.")
             return
 
+        # Clear session state for new processing
         st.session_state.pdf_files = []
         st.session_state.text_files = []
         st.session_state.csv_files = []
         csv_buffers = []
 
+        # Process each confirmation statement
         for idx, transaction_id in enumerate(transaction_ids):
             pdf_content = download_pdf(company_number, transaction_id)
             if not pdf_content:
@@ -208,26 +216,49 @@ def main():
             txt_name = f"{legal_name}_statement_{idx + 1}.txt"
             csv_name = f"{legal_name}_statement_{idx + 1}.csv"
 
+            # Save PDF content to session state
             st.session_state.pdf_files.append((pdf_name, pdf_content))
+
+            # Extract text and process into CSV
             text_content = extract_text_from_pdf(pdf_content)
             st.session_state.text_files.append((txt_name, text_content))
-            csv_buffer, _ = process_text_to_csv(
+
+            csv_buffer, statement_date = process_text_to_csv(
                 text_content, idx + 1, legal_name, company_number
             )
+
             st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
 
-        # Consolidate CSVs as horizontally joined tables
+        # Consolidate all individual CSVs into a single table
         st.session_state.consolidated_csv = consolidate_csvs(csv_buffers).getvalue()
 
-    # Add download buttons
+    # Add download buttons for each file
     for pdf_name, pdf_content in st.session_state.pdf_files:
-        st.download_button(label=f"Download {pdf_name}", data=pdf_content, file_name=pdf_name, mime="application/pdf")
-    for txt_name, txt_content in st.session_state.text_files:
-        st.download_button(label=f"Download {txt_name}", data=txt_content, file_name=txt_name, mime="text/plain")
-    for csv_name, csv_content in st.session_state.csv_files:
-        st.download_button(label=f"Download {csv_name}", data=csv_content, file_name=csv_name, mime="text/csv")
+        st.download_button(
+            label=f"Download {pdf_name}",
+            data=pdf_content,
+            file_name=pdf_name,
+            mime="application/pdf"
+        )
 
+    for txt_name, txt_content in st.session_state.text_files:
+        st.download_button(
+            label=f"Download {txt_name}",
+            data=txt_content,
+            file_name=txt_name,
+            mime="text/plain"
+        )
+
+    for csv_name, csv_content in st.session_state.csv_files:
+        st.download_button(
+            label=f"Download {csv_name}",
+            data=csv_content,
+            file_name=csv_name,
+            mime="text/csv"
+        )
+
+    # Download button for consolidated CSV
     if st.session_state.consolidated_csv:
         st.download_button(
             label=f"Download Consolidated CSV for {legal_name}",
@@ -235,6 +266,7 @@ def main():
             file_name=f"{legal_name}_consolidated.csv",
             mime="text/csv"
         )
+
 
 if __name__ == "__main__":
     main()
