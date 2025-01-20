@@ -117,7 +117,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                 j += 1
 
             # Collect shareholder data
-            shareholder_data.append([shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
+            shareholder_data.append(["", shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
 
     # Append shareholder data under headers
     csv_data.extend(shareholder_data)
