@@ -21,58 +21,6 @@ def get_company_number(legal_name, api_key):
     data = response.json()
     return data.get("items", [{}])[0].get("company_number")
 
-def get_confirmation_statement_transaction_ids(company_number, api_key):
-    """Fetch the transaction IDs for the latest 100 items, and filter for 'CS01' type."""
-    url = f"{API_BASE_URL}/company/{company_number}/filing-history?items_per_page=100"
-    headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
-    response = requests.get(url, headers=headers)
-    
-    if response.status_code != 200:
-        st.error("Failed to fetch filing history.")
-        return []
-    
-    data = response.json()
-    items = data.get("items", [])
-    transaction_ids = [
-        item.get("transaction_id")
-        for item in items
-        if item.get("type") and item["type"].lower() == "cs01"
-    ]
-    return transaction_ids[:3]  # Limit to the last 3 CS01 IDs
-
-def download_pdf(company_number, transaction_id):
-    """Download the confirmation statement PDF."""
-    url = f"{PDF_DOWNLOAD_URL}/company/{company_number}/filing-history/{transaction_id}/document?format=pdf&download=0"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.content
-    else:
-        return None
-
-def extract_text_from_pdf(pdf_content):
-    """Extract text from a PDF file."""
-    pdf_reader = PdfReader(BytesIO(pdf_content))
-    text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
-    return text_content
-
-import streamlit as st
-import csv
-import re
-from io import StringIO, BytesIO
-from PyPDF2 import PdfReader
-import requests
-import base64
-
-# Constants
-API_BASE_URL = "https://api.company-information.service.gov.uk"
-PDF_DOWNLOAD_URL = "https://find-and-update.company-information.service.gov.uk"
-
-def extract_text_from_pdf(pdf_content):
-    """Extract text from a PDF file."""
-    pdf_reader = PdfReader(BytesIO(pdf_content))
-    text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
-    return text_content
-
 def process_text_to_csv(text_content, legal_name, company_number, statement_number):
     """Process text content to generate a CSV for an individual statement."""
     lines = text_content.split("\n")
@@ -119,53 +67,44 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             print(f"Processing Shareholding line: {line}")  # Debugging
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
-            amount_of_shares = ""
-            raw_type_of_shares = ""
+
+            # Extract amount of shares and type of shares from the same line
+            shareholding_details = parts[1].strip().split()
+            if len(shareholding_details) >= 2:
+                amount_of_shares = shareholding_details[0]
+                raw_type_of_shares = shareholding_details[1]
+            else:
+                amount_of_shares = ""
+                raw_type_of_shares = ""
+
+            # Default to "Unknown" if type of shares cannot be extracted
+            type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
+            type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
+
             shareholder_name = ""
 
-            # Parse additional lines for shareholding details
-            i += 1
-            while i < len(lines):
-                sub_line = lines[i].strip()
-                print(f"Processing sub-line: {sub_line}")  # Debugging
-
-                # Skip transfer details
-                if "transferred on" in sub_line:
-                    print(f"Skipping transfer line: {sub_line}")
-                    i += 1
-                    continue
-
-                # Check for shares held
-                if "shares held as at the date" in sub_line:
-                    print(f"Shares held line: {sub_line}")
-                    details = sub_line.split()
-                    if len(details) >= 2:
-                        amount_of_shares = details[0]
-                        raw_type_of_shares = details[1].title()  # e.g., "ORDINARY"
-                    i += 1
-                    continue
-
-                # Look for the shareholder name
-                if sub_line.startswith("Name:"):
-                    print(f"Name line: {sub_line}")
-                    shareholder_name = sub_line.split(":")[1].strip()
+            # Look for the shareholder name
+            j = i + 1
+            while j < len(lines):
+                next_line = lines[j].strip()
+                if next_line.startswith("Name:"):
+                    shareholder_name = next_line.split(":")[1].strip()
                     break
-
-                i += 1
+                j += 1
 
             # Collect shareholder data
-            if shareholding_number and amount_of_shares and raw_type_of_shares and shareholder_name:
+            if shareholding_number and amount_of_shares and type_of_shares and shareholder_name:
                 print(f"Appending data: Shareholding #: {shareholding_number}, "
-                      f"Amount: {amount_of_shares}, Type: {raw_type_of_shares}, Name: {shareholder_name}")
+                      f"Amount: {amount_of_shares}, Type: {type_of_shares}, Name: {shareholder_name}")
                 shareholder_data.append([
                     shareholding_number,
                     amount_of_shares,
-                    raw_type_of_shares,
+                    type_of_shares,
                     shareholder_name
                 ])
             else:
                 print(f"Missing data: Shareholding #: {shareholding_number}, "
-                      f"Amount: {amount_of_shares}, Type: {raw_type_of_shares}, Name: {shareholder_name}")
+                      f"Amount: {amount_of_shares}, Type: {type_of_shares}, Name: {shareholder_name}")
 
         i += 1
 
