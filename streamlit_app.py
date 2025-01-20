@@ -10,6 +10,18 @@ import re
 API_BASE_URL = "https://api.company-information.service.gov.uk"
 PDF_DOWNLOAD_URL = "https://find-and-update.company-information.service.gov.uk"
 
+def download_pdf(company_number, transaction_id):
+    """Download the confirmation statement PDF."""
+    PDF_DOWNLOAD_URL = "https://find-and-update.company-information.service.gov.uk"
+    url = f"{PDF_DOWNLOAD_URL}/company/{company_number}/filing-history/{transaction_id}/document?format=pdf&download=0"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        return response.content
+    else:
+        st.error(f"Failed to download PDF for transaction ID {transaction_id}.")
+        return None
+
 def get_company_number(legal_name, api_key):
     """Fetch the company number using the legal name."""
     url = f"{API_BASE_URL}/search/companies?q={legal_name}"
