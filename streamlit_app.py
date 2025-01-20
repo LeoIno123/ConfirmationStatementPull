@@ -83,6 +83,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
         ["Company Number", company_number],
         ["Statement Date", ""],  # Placeholder for the statement date
         []  # Empty row as a separator
+        ["Class of Shares", "Total Shares Alloted"]
     ]
 
     statement_date = ""
@@ -141,7 +142,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
     # Add class share data to the CSV
     for class_name, number_allotted in class_share_data:
-        csv_data.append([f"Class of Shares: {class_name}", f"Total Shares Allotted: {number_allotted}"])
+        csv_data.append([f"class_name", f"number_allotted"])
 
     # Add a blank row to separate shareholding data
     csv_data.append([])
