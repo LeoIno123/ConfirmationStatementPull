@@ -147,7 +147,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                 amount_of_shares,
                 type_of_shares,
                 shareholder_name or "PENDING",
-                "; ".join(transfer_details)  # Combine transfer details
+                "; ".join(transfer_details) if transfer_details else ""  # Add empty string if no transfer details
             ])
 
         i += 1
@@ -170,8 +170,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
-
-
 
 
 
