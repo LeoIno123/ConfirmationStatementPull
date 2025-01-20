@@ -94,7 +94,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
         line = lines[i].strip()
 
         # Extract confirmation statement date
-        if line.startswith("Confirmation Statement date:"):
+        if line.startswith("Statement date:"):
             statement_date = line.split(":")[1].strip()
             csv_data[2][1] = statement_date  # Update the statement date
 
@@ -109,11 +109,9 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                 i += 1
 
             # Ensure we're still within bounds and process the number allotted
-            if i < len(lines):
-                line = lines[i].strip()
-                if "Currency: GBPNumber allotted" in line:
-                    number_allotted = int(line.split("Currency: GBPNumber allotted")[1].strip().split()[0])
-                    class_share_data.append([class_name.strip(), number_allotted])
+            if i < len(lines) and "Currency: GBPNumber allotted" in lines[i]:
+                number_allotted = int(lines[i].split("Currency: GBPNumber allotted")[1].strip().split()[0])
+                class_share_data.append([class_name.strip(), number_allotted])
 
         # Extract shareholder data
         if line.startswith("Shareholding"):
@@ -134,8 +132,9 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     shareholder_info.append(sub_line)
                 elif "shares held as at the date" in sub_line:
                     details = sub_line.split()
-                    amount_of_shares = details[0]
-                    type_of_shares = details[1].title()  # e.g., "ORDINARY"
+                    if len(details) >= 2:
+                        amount_of_shares = details[0]
+                        type_of_shares = details[1].title()  # e.g., "ORDINARY"
                 i += 1
 
             # Look for the shareholder name
@@ -171,8 +170,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
-
-
 
 
 
