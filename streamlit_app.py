@@ -21,6 +21,27 @@ def get_company_number(legal_name, api_key):
     data = response.json()
     return data.get("items", [{}])[0].get("company_number")
 
+def get_confirmation_statement_transaction_ids(company_number, api_key):
+    """Fetch the transaction IDs for the latest 100 items, and filter for 'CS01' type."""
+    API_BASE_URL = "https://api.company-information.service.gov.uk"
+    url = f"{API_BASE_URL}/company/{company_number}/filing-history?items_per_page=100"
+    headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code != 200:
+        st.error("Failed to fetch filing history.")
+        return []
+    
+    data = response.json()
+    items = data.get("items", [])
+    transaction_ids = [
+        item.get("transaction_id")
+        for item in items
+        if item.get("type") and item["type"].lower() == "cs01"
+    ]
+    return transaction_ids[:3]  # Limit to the last 3 CS01 IDs
+
+
 def process_text_to_csv(text_content, legal_name, company_number, statement_number):
     """Process text content to generate a CSV for an individual statement."""
     lines = text_content.split("\n")
