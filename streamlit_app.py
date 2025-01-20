@@ -140,7 +140,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     i += 1
                     continue
 
-                # Look for the shareholder name
+                # Break when "Name:" is found
                 if sub_line.startswith("Name:"):
                     shareholder_name = sub_line.split(":")[1].strip()
                     break
@@ -176,7 +176,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
-
 
 
 
