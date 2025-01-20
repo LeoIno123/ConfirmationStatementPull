@@ -120,7 +120,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             amount_of_shares = ""
             type_of_shares = ""
             shareholder_name = ""
-            transfer_details = []
 
             # Parse additional lines for shareholding details
             i += 1
@@ -146,8 +145,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                 shareholding_number,
                 amount_of_shares,
                 type_of_shares,
-                shareholder_name or "PENDING",
-                "; ".join(transfer_details) if transfer_details else ""  # Add empty string if no transfer details
+                shareholder_name or "PENDING"
             ])
 
         i += 1
@@ -160,7 +158,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     csv_data.append([])
 
     # Append shareholder headers and data
-    shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name", "Transfer Details"]
+    shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
     csv_data.append(shareholder_headers)
     csv_data.extend(shareholder_data)
 
