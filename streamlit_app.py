@@ -92,7 +92,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     i = 0
     while i < len(lines):
         line = lines[i].strip()
-        print(f"Parsing line: {line}")  # Debugging
 
         # Extract confirmation statement date
         if line.startswith("Statement date:"):
@@ -116,7 +115,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
         # Extract shareholder data
         if line.startswith("Shareholding"):
-            print(f"Detected Shareholding line: {line}")  # Debugging
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
             amount_of_shares = ""
@@ -127,18 +125,11 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             i += 1
             while i < len(lines):
                 sub_line = lines[i].strip()
-                print(f"Processing sub-line: {sub_line}")  # Debugging
 
                 # Skip transfer details
                 if "transferred on" in sub_line:
                     i += 1
                     continue
-
-                # Break when "Name:" is found
-                if "Name:" in sub_line:
-                    shareholder_name = sub_line.split(":")[1].strip()
-                    print(f"Found Name: {shareholder_name}")  # Debugging
-                    break
 
                 # Check for shares held
                 if "shares held as at the date" in sub_line:
@@ -146,7 +137,14 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     if len(details) >= 2:
                         amount_of_shares = details[0]
                         raw_type_of_shares = details[1].title()  # e.g., "ORDINARY"
-                        print(f"Extracted Shares: {amount_of_shares}, Type: {raw_type_of_shares}")  # Debugging
+                    i += 1
+                    continue
+
+                # Look for the shareholder name
+                if sub_line.startswith("Name:"):
+                    shareholder_name = sub_line.split(":")[1].strip()
+                    break
+
                 i += 1
 
             # Collect shareholder data
@@ -157,8 +155,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     raw_type_of_shares,
                     shareholder_name
                 ])
-            else:
-                print(f"Skipping incomplete shareholding data: {line}")  # Debugging
 
         i += 1
 
