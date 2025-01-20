@@ -103,12 +103,12 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             class_name = line.split("Class of Shares:")[1].strip()
             i += 1
 
-            # Handle multi-line class names with safe index checking
+            # Handle multi-line class names
             while i < len(lines) and not lines[i].strip().startswith("Currency: GBPNumber allotted"):
                 class_name += f" {lines[i].strip()}"
                 i += 1
 
-            # Ensure we're still within bounds and process the number allotted
+            # Extract number allotted
             if i < len(lines) and "Currency: GBPNumber allotted" in lines[i]:
                 number_allotted = int(lines[i].split("Currency: GBPNumber allotted")[1].strip().split()[0])
                 class_share_data.append([class_name.strip(), number_allotted])
@@ -117,19 +117,19 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
         if line.startswith("Shareholding"):
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
-            shareholder_info = []
             amount_of_shares = ""
             type_of_shares = ""
             shareholder_name = ""
+            transfer_details = []
 
-            # Parse additional lines for shareholding data
+            # Parse additional lines for shareholding details
             i += 1
             while i < len(lines) and not lines[i].strip().startswith("Name:"):
                 sub_line = lines[i].strip()
 
-                # Check for transfer details or total shares held
+                # Check for transfer details
                 if "transferred on" in sub_line:
-                    shareholder_info.append(sub_line)
+                    transfer_details.append(sub_line)
                 elif "shares held as at the date" in sub_line:
                     details = sub_line.split()
                     if len(details) >= 2:
@@ -147,7 +147,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                 amount_of_shares,
                 type_of_shares,
                 shareholder_name or "PENDING",
-                "; ".join(shareholder_info)  # Combine transfer details
+                "; ".join(transfer_details)  # Combine transfer details
             ])
 
         i += 1
@@ -170,6 +170,8 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
+
 
 
 
