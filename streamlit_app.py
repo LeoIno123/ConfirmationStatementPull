@@ -10,18 +10,6 @@ import re
 API_BASE_URL = "https://api.company-information.service.gov.uk"
 PDF_DOWNLOAD_URL = "https://find-and-update.company-information.service.gov.uk"
 
-def download_pdf(company_number, transaction_id):
-    """Download the confirmation statement PDF."""
-    PDF_DOWNLOAD_URL = "https://find-and-update.company-information.service.gov.uk"
-    url = f"{PDF_DOWNLOAD_URL}/company/{company_number}/filing-history/{transaction_id}/document?format=pdf&download=0"
-    response = requests.get(url)
-
-    if response.status_code == 200:
-        return response.content
-    else:
-        st.error(f"Failed to download PDF for transaction ID {transaction_id}.")
-        return None
-
 def get_company_number(legal_name, api_key):
     """Fetch the company number using the legal name."""
     url = f"{API_BASE_URL}/search/companies?q={legal_name}"
@@ -35,7 +23,6 @@ def get_company_number(legal_name, api_key):
 
 def get_confirmation_statement_transaction_ids(company_number, api_key):
     """Fetch the transaction IDs for the latest 100 items, and filter for 'CS01' type."""
-    API_BASE_URL = "https://api.company-information.service.gov.uk"
     url = f"{API_BASE_URL}/company/{company_number}/filing-history?items_per_page=100"
     headers = {"Authorization": f"Basic {base64.b64encode(f'{api_key}:'.encode()).decode()}"}
     response = requests.get(url, headers=headers)
@@ -53,6 +40,38 @@ def get_confirmation_statement_transaction_ids(company_number, api_key):
     ]
     return transaction_ids[:3]  # Limit to the last 3 CS01 IDs
 
+def download_pdf(company_number, transaction_id):
+    """Download the confirmation statement PDF."""
+    url = f"{PDF_DOWNLOAD_URL}/company/{company_number}/filing-history/{transaction_id}/document?format=pdf&download=0"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.content
+    else:
+        return None
+
+def extract_text_from_pdf(pdf_content):
+    """Extract text from a PDF file."""
+    pdf_reader = PdfReader(BytesIO(pdf_content))
+    text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
+    return text_content
+
+import streamlit as st
+import csv
+import re
+from io import StringIO, BytesIO
+from PyPDF2 import PdfReader
+import requests
+import base64
+
+# Constants
+API_BASE_URL = "https://api.company-information.service.gov.uk"
+PDF_DOWNLOAD_URL = "https://find-and-update.company-information.service.gov.uk"
+
+def extract_text_from_pdf(pdf_content):
+    """Extract text from a PDF file."""
+    pdf_reader = PdfReader(BytesIO(pdf_content))
+    text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
+    return text_content
 
 def process_text_to_csv(text_content, legal_name, company_number, statement_number):
     """Process text content to generate a CSV for an individual statement."""
@@ -73,7 +92,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     i = 0
     while i < len(lines):
         line = lines[i].strip()
-        print(f"Parsing line: {line}")  # Debugging
 
         # Extract confirmation statement date
         if line.startswith("Statement date:"):
@@ -97,47 +115,43 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
         # Extract shareholder data
         if line.startswith("Shareholding"):
-            print(f"Processing Shareholding line: {line}")  # Debugging
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
-
-            # Extract amount of shares and type of shares from the same line
-            shareholding_details = parts[1].strip().split()
-            if len(shareholding_details) >= 2:
-                amount_of_shares = shareholding_details[0]
-                raw_type_of_shares = shareholding_details[1]
-            else:
-                amount_of_shares = ""
-                raw_type_of_shares = ""
-
-            # Default to "Unknown" if type of shares cannot be extracted
-            type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
-            type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
-
+            amount_of_shares = ""
+            raw_type_of_shares = ""
             shareholder_name = ""
 
-            # Look for the shareholder name
-            j = i + 1
-            while j < len(lines):
-                next_line = lines[j].strip()
-                if next_line.startswith("Name:"):
-                    shareholder_name = next_line.split(":")[1].strip()
+            # Parse additional lines for shareholding details
+            i += 1
+            while i < len(lines):
+                sub_line = lines[i].strip()
+
+                # Skip transfer details
+                if "transferred on" in sub_line:
+                    i += 1
+                    continue
+
+                # Break when "Name:" is found
+                if sub_line.startswith("Name:"):
+                    shareholder_name = sub_line.split(":")[1].strip()
                     break
-                j += 1
+
+                # Check for shares held
+                if "shares held as at the date" in sub_line:
+                    details = sub_line.split()
+                    if len(details) >= 2:
+                        amount_of_shares = details[0]
+                        raw_type_of_shares = details[1].title()  # e.g., "ORDINARY"
+                i += 1
 
             # Collect shareholder data
-            if shareholding_number and amount_of_shares and type_of_shares and shareholder_name:
-                print(f"Appending data: Shareholding #: {shareholding_number}, "
-                      f"Amount: {amount_of_shares}, Type: {type_of_shares}, Name: {shareholder_name}")
+            if shareholding_number and amount_of_shares and raw_type_of_shares and shareholder_name:
                 shareholder_data.append([
                     shareholding_number,
                     amount_of_shares,
-                    type_of_shares,
+                    raw_type_of_shares,
                     shareholder_name
                 ])
-            else:
-                print(f"Missing data: Shareholding #: {shareholding_number}, "
-                      f"Amount: {amount_of_shares}, Type: {type_of_shares}, Name: {shareholder_name}")
 
         i += 1
 
@@ -241,6 +255,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
+    
