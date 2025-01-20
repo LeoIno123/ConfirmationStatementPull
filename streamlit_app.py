@@ -126,15 +126,15 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             while i < len(lines):
                 sub_line = lines[i].strip()
 
-                # Break when "Name:" is found
-                if sub_line.startswith("Name:"):
-                    shareholder_name = sub_line.split(":")[1].strip()
-                    break
-
                 # Skip transfer details
                 if "transferred on" in sub_line:
                     i += 1
                     continue
+
+                # Break when "Name:" is found
+                if sub_line.startswith("Name:"):
+                    shareholder_name = sub_line.split(":")[1].strip()
+                    break
 
                 # Check for shares held
                 if "shares held as at the date" in sub_line:
@@ -144,7 +144,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                         raw_type_of_shares = details[1].title()  # e.g., "ORDINARY"
                 i += 1
 
-            # Append only if all required data is available
+            # Collect shareholder data
             if shareholding_number and amount_of_shares and raw_type_of_shares and shareholder_name:
                 shareholder_data.append([
                     shareholding_number,
@@ -173,8 +173,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
-
-
 
 
 
