@@ -92,6 +92,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     i = 0
     while i < len(lines):
         line = lines[i].strip()
+        print(f"Parsing line: {line}")  # Debugging
 
         # Extract confirmation statement date
         if line.startswith("Statement date:"):
@@ -115,6 +116,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
         # Extract shareholder data
         if line.startswith("Shareholding"):
+            print(f"Processing Shareholding line: {line}")  # Debugging
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
             amount_of_shares = ""
@@ -125,14 +127,17 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             i += 1
             while i < len(lines):
                 sub_line = lines[i].strip()
+                print(f"Processing sub-line: {sub_line}")  # Debugging
 
                 # Skip transfer details
                 if "transferred on" in sub_line:
+                    print(f"Skipping transfer line: {sub_line}")
                     i += 1
                     continue
 
                 # Check for shares held
                 if "shares held as at the date" in sub_line:
+                    print(f"Shares held line: {sub_line}")
                     details = sub_line.split()
                     if len(details) >= 2:
                         amount_of_shares = details[0]
@@ -140,8 +145,9 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     i += 1
                     continue
 
-                # Break when "Name:" is found
+                # Look for the shareholder name
                 if sub_line.startswith("Name:"):
+                    print(f"Name line: {sub_line}")
                     shareholder_name = sub_line.split(":")[1].strip()
                     break
 
@@ -149,12 +155,17 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
             # Collect shareholder data
             if shareholding_number and amount_of_shares and raw_type_of_shares and shareholder_name:
+                print(f"Appending data: Shareholding #: {shareholding_number}, "
+                      f"Amount: {amount_of_shares}, Type: {raw_type_of_shares}, Name: {shareholder_name}")
                 shareholder_data.append([
                     shareholding_number,
                     amount_of_shares,
                     raw_type_of_shares,
                     shareholder_name
                 ])
+            else:
+                print(f"Missing data: Shareholding #: {shareholding_number}, "
+                      f"Amount: {amount_of_shares}, Type: {raw_type_of_shares}, Name: {shareholder_name}")
 
         i += 1
 
@@ -176,9 +187,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
-
-
-
 
 
 
