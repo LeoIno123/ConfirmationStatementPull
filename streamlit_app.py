@@ -77,17 +77,14 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     """Process text content to generate a CSV for an individual statement."""
     lines = text_content.split("\n")
 
-    # Statement info in column A
+    # Initialize CSV data with statement info
     csv_data = [
-        ["Company Legal Name"], [legal_name], [],
-        ["Company Number"], [company_number], [],
-        ["Statement Date"], [""], []  # Placeholder for the statement date
+        ["Company Legal Name", legal_name],
+        ["Company Number", company_number],
+        ["Statement Date", ""],  # Placeholder for the statement date
+        [],  # Empty row as a separator
+        ["", "Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"],  # Headers for shareholder data
     ]
-
-    # Shareholder data headers in C1:F1
-    shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
-    if len(csv_data[0]) < 4:  # Add horizontal headers only if not already present
-        csv_data[0].extend([""] * 1 + shareholder_headers)
 
     statement_date = ""
     shareholder_data = []  # To collect rows of shareholder information
@@ -97,7 +94,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
         if line.startswith("Confirmation Statement date:"):
             statement_date = line.split(":")[1].strip()
-            csv_data[7][0] = statement_date  # Update the placeholder for the statement date
+            csv_data[2][1] = statement_date  # Update the statement date
 
         if line.startswith("Shareholding"):
             # Extract shareholder details
@@ -122,9 +119,8 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             # Collect shareholder data
             shareholder_data.append([shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
 
-    # Append shareholder data under B2:E2 (headers are in B1:E1)
-    for row in shareholder_data:
-        csv_data.append([""] + row)  # Append data starting from Column B
+    # Append shareholder data under headers
+    csv_data.extend(shareholder_data)
 
     # Create CSV buffer
     csv_buffer = StringIO()
@@ -132,6 +128,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 
