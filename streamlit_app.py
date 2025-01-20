@@ -126,7 +126,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             while i < len(lines) and not lines[i].strip().startswith("Name:"):
                 sub_line = lines[i].strip()
 
-                # Ignore transfer details
+                # Skip transfer details
                 if "transferred on" in sub_line:
                     i += 1
                     continue
