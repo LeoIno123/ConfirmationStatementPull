@@ -116,6 +116,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
         # Extract shareholder data
         if line.startswith("Shareholding"):
+            print(f"Detected Shareholding line: {line}")  # Debugging
             parts = line.split(":")
             shareholding_number = parts[0].split()[-1]
             amount_of_shares = ""
@@ -134,8 +135,9 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     continue
 
                 # Break when "Name:" is found
-                if sub_line.startswith("Name:"):
+                if "Name:" in sub_line:
                     shareholder_name = sub_line.split(":")[1].strip()
+                    print(f"Found Name: {shareholder_name}")  # Debugging
                     break
 
                 # Check for shares held
@@ -144,13 +146,8 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     if len(details) >= 2:
                         amount_of_shares = details[0]
                         raw_type_of_shares = details[1].title()  # e.g., "ORDINARY"
+                        print(f"Extracted Shares: {amount_of_shares}, Type: {raw_type_of_shares}")  # Debugging
                 i += 1
-
-            # Debugging: Print extracted shareholder data
-            print(f"Extracted Shareholding #: {shareholding_number}")
-            print(f"Extracted Amount of Shares: {amount_of_shares}")
-            print(f"Extracted Type of Shares: {raw_type_of_shares}")
-            print(f"Extracted Shareholder Name: {shareholder_name}")
 
             # Collect shareholder data
             if shareholding_number and amount_of_shares and raw_type_of_shares and shareholder_name:
@@ -161,7 +158,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     shareholder_name
                 ])
             else:
-                print(f"Skipping incomplete shareholding data: {shareholding_number}")
+                print(f"Skipping incomplete shareholding data: {line}")  # Debugging
 
         i += 1
 
@@ -183,6 +180,9 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
+
+
 
 
 
