@@ -74,100 +74,98 @@ def extract_text_from_pdf(pdf_content):
     return text_content
 
 def process_text_to_csv(text_content, legal_name, company_number, statement_number):
-    """Process text content to generate a CSV for an individual statement."""
-    lines = text_content.split("\n")
+   """Process text content to generate a CSV for an individual statement."""
+   lines = text_content.split("\n")
 
-    # Initialize CSV data
-    csv_data = [
-        ["Company Legal Name", legal_name],
-        ["Company Number", company_number],
-        ["Statement Date", ""],  # Placeholder for the statement date
-        []  # Empty row as a separator
-    ]
 
-    statement_date = ""
-    class_share_data = []  # To store class of shares and total shares allotted
-    shareholder_data = []  # To collect rows of shareholder information
+   # Initialize CSV data
+   csv_data = [
+       ["Company Legal Name", legal_name],
+       ["Company Number", company_number],
+       ["Statement Date", ""],  # Placeholder for the statement date
+       []  # Empty row as a separator
+   ]
 
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
+   statement_date = ""
+   class_share_data = []  # To store class of shares and total shares allotted
+   shareholder_data = []  # To collect rows of shareholder information
 
-        # Extract confirmation statement date
-        if line.startswith("Statement date:"):
-            statement_date = line.split(":")[1].strip()
-            csv_data[2][1] = statement_date  # Update the statement date
+   i = 0
+   while i < len(lines):
+       line = lines[i].strip()
 
-        # Extract class of shares and total number allotted
-        if line.startswith("Class of Shares:"):
-            class_name = line.split("Class of Shares:")[1].strip()
-            i += 1
+       # Extract confirmation statement date
+       if line.startswith("Statement date:"):
+           statement_date = line.split(":")[1].strip()
+           csv_data[2][1] = statement_date  # Update the statement date
 
-            # Handle multi-line class names
-            while i < len(lines) and not lines[i].strip().startswith("Currency: GBPNumber allotted"):
-                class_name += f" {lines[i].strip()}"
-                i += 1
+       # Extract class of shares and total number allotted
+       if line.startswith("Class of Shares:"):
+           class_name = line.split("Class of Shares:")[1].strip()
+           i += 1
 
-            # Extract number allotted
-            if i < len(lines) and "Currency: GBPNumber allotted" in lines[i]:
-                number_allotted = int(lines[i].split("Currency: GBPNumber allotted")[1].strip().split()[0])
-                class_share_data.append([class_name.strip(), number_allotted])
+           # Handle multi-line class names
+           while not lines[i].strip().startswith("Currency: GBPNumber allotted"):
+               class_name += f" {lines[i].strip()}"
+               i += 1
 
-        # Extract shareholder data
-        if line.startswith("Shareholding"):
-            parts = line.split(":")
-            shareholding_number = parts[0].split()[-1]
-            amount_of_shares = ""
-            type_of_shares = ""
-            shareholder_name = ""
 
-            # Parse additional lines for shareholding details
-            i += 1
-            while i < len(lines) and not lines[i].strip().startswith("Name:"):
-                sub_line = lines[i].strip()
+           # Extract number allotted
+           line = lines[i].strip()
+           if "Currency: GBPNumber allotted" in line:
+               number_allotted = int(line.split("Currency: GBPNumber allotted")[1].strip().split()[0])
+               class_share_data.append([class_name.strip(), number_allotted])
 
-                # Check for transfer details
-                if "transferred on" in sub_line:
-                    transfer_details.append(sub_line)
-                elif "shares held as at the date" in sub_line:
-                    details = sub_line.split()
-                    if len(details) >= 2:
-                        amount_of_shares = details[0]
-                        type_of_shares = details[1].title()  # e.g., "ORDINARY"
-                i += 1
+       # Extract shareholder data
+       if line.startswith("Shareholding"):
+           parts = line.split(":")
+           shareholding_number = parts[0].split()[-1]
+           shareholding_details = parts[1].strip().split()
+           amount_of_shares = shareholding_details[0]
+           raw_type_of_shares = " ".join(shareholding_details[1:])
+           type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
+           type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
+           shareholder_name = ""
 
-            # Look for the shareholder name
-            if i < len(lines) and lines[i].strip().startswith("Name:"):
-                shareholder_name = lines[i].split(":")[1].strip()
 
-            # Collect shareholder data
-            shareholder_data.append([
-                shareholding_number,
-                amount_of_shares,
-                type_of_shares,
-                shareholder_name or "PENDING"
-            ])
+           # Look for the shareholder name
+           j = i + 1
+           while j < len(lines):
+               next_line = lines[j].strip()
+               if next_line.startswith("Name:"):
+                   shareholder_name = next_line.split(":")[1].strip()
+                   break
+               j += 1
 
-        i += 1
 
-    # Add class share data to the CSV
-    for class_name, number_allotted in class_share_data:
-        csv_data.append([class_name, number_allotted])
+           # Collect shareholder data
+           shareholder_data.append([shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
 
-    # Add a blank row to separate shareholding data
-    csv_data.append([])
 
-    # Append shareholder headers and data
-    shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
-    csv_data.append(shareholder_headers)
-    csv_data.extend(shareholder_data)
+       i += 1
 
-    # Create CSV buffer
-    csv_buffer = StringIO()
-    writer = csv.writer(csv_buffer)
-    writer.writerows(csv_data)
-    csv_buffer.seek(0)
-    return csv_buffer, statement_date
+
+   # Add class share data to the CSV
+   for class_name, number_allotted in class_share_data:
+       csv_data.append([class_name, number_allotted])
+
+
+   # Add a blank row to separate shareholding data
+   csv_data.append([])
+
+
+   # Append shareholder headers and data
+   shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
+   csv_data.append(shareholder_headers)
+   csv_data.extend(shareholder_data)
+
+
+   # Create CSV buffer
+   csv_buffer = StringIO()
+   writer = csv.writer(csv_buffer)
+   writer.writerows(csv_data)
+   csv_buffer.seek(0)
+   return csv_buffer, statement_date
 
 
 
