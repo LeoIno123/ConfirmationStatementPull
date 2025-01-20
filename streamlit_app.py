@@ -92,7 +92,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     for i, line in enumerate(lines):
         line = line.strip()
 
-        if line.startswith("Confirmation Statement date:"):
+        if line.startswith("Statement date:"):
             statement_date = line.split(":")[1].strip()
             csv_data[2][1] = statement_date  # Update the statement date
 
@@ -204,7 +204,7 @@ def main():
 
     for csv_name, csv_content in st.session_state.csv_files:
         st.download_button(label=f"Download {csv_name}", data=csv_content, file_name=csv_name, mime="text/csv")
-        
+
 
 if __name__ == "__main__":
     main()
