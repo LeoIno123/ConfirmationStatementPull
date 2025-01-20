@@ -92,6 +92,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     i = 0
     while i < len(lines):
         line = lines[i].strip()
+        print(f"Parsing line: {line}")  # Debugging
 
         # Extract confirmation statement date
         if line.startswith("Statement date:"):
@@ -125,6 +126,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             i += 1
             while i < len(lines):
                 sub_line = lines[i].strip()
+                print(f"Processing sub-line: {sub_line}")  # Debugging
 
                 # Skip transfer details
                 if "transferred on" in sub_line:
@@ -144,6 +146,12 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                         raw_type_of_shares = details[1].title()  # e.g., "ORDINARY"
                 i += 1
 
+            # Debugging: Print extracted shareholder data
+            print(f"Extracted Shareholding #: {shareholding_number}")
+            print(f"Extracted Amount of Shares: {amount_of_shares}")
+            print(f"Extracted Type of Shares: {raw_type_of_shares}")
+            print(f"Extracted Shareholder Name: {shareholder_name}")
+
             # Collect shareholder data
             if shareholding_number and amount_of_shares and raw_type_of_shares and shareholder_name:
                 shareholder_data.append([
@@ -152,6 +160,8 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                     raw_type_of_shares,
                     shareholder_name
                 ])
+            else:
+                print(f"Skipping incomplete shareholding data: {shareholding_number}")
 
         i += 1
 
@@ -173,6 +183,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 
