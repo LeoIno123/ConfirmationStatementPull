@@ -130,38 +130,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     return csv_buffer, statement_date
 
 
-
-
-
-def consolidate_csvs(csv_buffers):
-    """Consolidate individual CSV buffers as horizontally joined tables."""
-    consolidated_rows = []
-    max_rows = 0
-
-    tables = []
-    for buf in csv_buffers:
-        buf.seek(0)
-        rows = list(csv.reader(buf))
-        tables.append(rows)
-        max_rows = max(max_rows, len(rows))
-
-    for i in range(max_rows):
-        row = []
-        for table in tables:
-            if i < len(table):
-                row.extend(table[i])
-            else:
-                row.extend([""] * len(table[0]))
-            row.append("")  # Single-column gap
-        consolidated_rows.append(row[:-1])  # Remove last gap
-
-    # Create consolidated CSV buffer
-    consolidated_buffer = StringIO()
-    writer = csv.writer(consolidated_buffer)
-    writer.writerows(consolidated_rows)
-    consolidated_buffer.seek(0)
-    return consolidated_buffer
-
 def main():
     st.title("Company Confirmation Statement Downloader")
 
@@ -225,8 +193,7 @@ def main():
             st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
 
-        # Consolidate CSVs into a single file
-        st.session_state.consolidated_csv = consolidate_csvs(csv_buffers).getvalue()
+
 
     # Add download buttons
     for pdf_name, pdf_content in st.session_state.pdf_files:
@@ -237,14 +204,7 @@ def main():
 
     for csv_name, csv_content in st.session_state.csv_files:
         st.download_button(label=f"Download {csv_name}", data=csv_content, file_name=csv_name, mime="text/csv")
-
-    if st.session_state.consolidated_csv:
-        st.download_button(
-            label=f"Download Consolidated CSV for {legal_name}",
-            data=st.session_state.consolidated_csv,
-            file_name=f"{legal_name}_consolidated.csv",
-            mime="text/csv"
-        )
+        
 
 if __name__ == "__main__":
     main()
