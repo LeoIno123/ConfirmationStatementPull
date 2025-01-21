@@ -77,12 +77,12 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     """Process text content to generate a CSV for an individual statement."""
     lines = text_content.split("\n")
 
-    # Initialize CSV data
+    # Initialize CSV data with statement information
     csv_data = [
         ["Company Legal Name", legal_name],
         ["Company Number", company_number],
         ["Statement Date", ""],  # Placeholder for the statement date
-        []  # Empty row as a separator
+        [],  # Empty row separator
     ]
 
     statement_date = ""
@@ -93,57 +93,59 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
         line = lines[i].strip()
 
         # Extract confirmation statement date
-        if line.startswith("Confirmation Statement date:"):
+        if line.startswith("Statement date:"):
             statement_date = line.split(":")[1].strip()
             csv_data[2][1] = statement_date  # Update the statement date
 
-        # Extract shareholder data
+        # Detect shareholding line
         if line.startswith("Shareholding"):
-            parts = line.split(":")
-            shareholding_number = parts[0].split()[-1]
-            details = parts[1].strip()
+            # Initialize buffer to collect multi-line details
+            buffer = line
 
-            # Gather additional lines if data spans multiple lines
+            # Look ahead to collect additional lines
             j = i + 1
             while j < len(lines):
                 next_line = lines[j].strip()
+
+                # Stop collecting if we hit a new block (e.g., Name: or Shareholding)
                 if next_line.startswith("Name:") or next_line.startswith("Shareholding"):
-                    break  # Stop if the next shareholder block begins
-                details += f" {next_line}"  # Concatenate split lines
+                    break
+
+                # Append current line to buffer
+                buffer += " " + next_line
                 j += 1
 
-            # Remove transfer-related information
-            details = re.sub(r"transferred on.*", "", details, flags=re.IGNORECASE).strip()
-
-            # Extract amount of shares and type of shares
-            shareholding_details = details.split()
-            if len(shareholding_details) > 1:
-                amount_of_shares = shareholding_details[0]
-                raw_type_of_shares = " ".join(shareholding_details[1:])
-                type_of_shares_match = re.search(r"(.*?)\s+shares", raw_type_of_shares.lower())
-                type_of_shares = type_of_shares_match.group(1).title() if type_of_shares_match else "Unknown"
+            # Extract details from the aggregated buffer
+            match = re.search(r"Shareholding\s+(\d+):\s+.*?(\d+)\s+(.*?)\s+shares", buffer, re.IGNORECASE)
+            if match:
+                shareholding_number = match.group(1)
+                amount_of_shares = match.group(2)
+                type_of_shares = match.group(3).title()
             else:
+                shareholding_number = buffer.split(":")[0].split()[-1]
                 amount_of_shares = "Unknown"
                 type_of_shares = "Unknown"
 
-            # Look for the shareholder name
+            # Extract shareholder name
             shareholder_name = ""
-            while j < len(lines):
-                next_line = lines[j].strip()
-                if next_line.startswith("Name:"):
-                    shareholder_name = next_line.split(":")[1].strip()
-                    i = j  # Advance the main loop to skip processed lines
-                    break
-                j += 1
+            if j < len(lines) and lines[j].strip().startswith("Name:"):
+                shareholder_name = lines[j].strip().split(":")[1].strip()
 
-            # Collect shareholder data
-            shareholder_data.append([shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"])
+            # Append extracted data
+            shareholder_data.append([
+                shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
+            ])
 
-        i += 1
+            # Move to the next unprocessed line
+            i = j
+        else:
+            i += 1
 
-    # Add shareholder headers and data
-    shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
+    # Add a blank row to separate shareholding data
     csv_data.append([])
+
+    # Append shareholder headers and data
+    shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
     csv_data.append(shareholder_headers)
     csv_data.extend(shareholder_data)
 
@@ -153,6 +155,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 
