@@ -115,14 +115,16 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
                 buffer += " " + next_line
                 j += 1
 
-            # Extract details from the aggregated buffer
-            match = re.search(r"Shareholding\s+(\d+):\s+.*?(\d+)\s+(.*?)\s+shares", buffer, re.IGNORECASE)
-            if match:
-                shareholding_number = match.group(1)
-                amount_of_shares = match.group(2)
-                type_of_shares = match.group(3).title()
+            # Extract shareholding number
+            shareholding_number_match = re.search(r"Shareholding\s+(\d+):", buffer)
+            shareholding_number = shareholding_number_match.group(1) if shareholding_number_match else "Unknown"
+
+            # Extract the total shares and type of shares
+            total_shares_match = re.search(r"(\d+)\s+(\w+)\s+shares\s+held", buffer, re.IGNORECASE)
+            if total_shares_match:
+                amount_of_shares = total_shares_match.group(1)
+                type_of_shares = total_shares_match.group(2).title()
             else:
-                shareholding_number = buffer.split(":")[0].split()[-1]
                 amount_of_shares = "Unknown"
                 type_of_shares = "Unknown"
 
@@ -155,6 +157,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 
