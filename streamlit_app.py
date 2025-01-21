@@ -86,6 +86,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     ]
 
     statement_date = ""
+    class_share_data = []  # To store class of shares and total shares allotted
     shareholder_data = []  # To collect rows of shareholder information
 
     i = 0
@@ -142,6 +143,10 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             i = j
         else:
             i += 1
+            
+    # Add class share data to the CSV
+    csv_data.append(["Class of Shares", "Total Shares Allotted"])
+    csv_data.extend(class_share_data)
 
     # Add a blank row to separate shareholding data
     csv_data.append([])
