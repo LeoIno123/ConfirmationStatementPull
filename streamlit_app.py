@@ -151,6 +151,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     return csv_buffer, statement_date
 
 
+
 def main():
     st.title("Company Confirmation Statement Downloader")
 
