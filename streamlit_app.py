@@ -55,15 +55,101 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-def process_text_to_csv(text_content, legal_name, company_number, statement_date):
-    """Process text content to generate a CSV for an individual statement."""
-    # Your CSV processing logic here (unchanged from your current working copy)
+from collections import defaultdict
 
+def process_text_to_csv(text_content, legal_name, company_number, statement_number):
+    """Process text content to generate a CSV for an individual statement."""
+    lines = text_content.split("\n")
+
+    # Initialize CSV data with statement information
+    csv_data = [
+        ["Company Legal Name", legal_name],
+        ["Company Number", company_number],
+        ["Statement Date", ""],  # Placeholder for the statement date
+        [],  # Empty row separator
+    ]
+
+    statement_date = ""
+    shareholder_data = []  # To collect rows of shareholder information
+    share_totals = defaultdict(int)  # To aggregate total shares by type
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+
+        # Extract confirmation statement date
+        if line.startswith("Statement date:"):
+            statement_date = line.split(":")[1].strip()
+            csv_data[2][1] = statement_date  # Update the statement date
+
+        # Detect shareholding line
+        if line.startswith("Shareholding"):
+            # Initialize buffer to collect multi-line details
+            buffer = line
+
+            # Look ahead to collect additional lines
+            j = i + 1
+            while j < len(lines):
+                next_line = lines[j].strip()
+
+                # Stop collecting if we hit a new block (e.g., Name: or Shareholding)
+                if next_line.startswith("Name:") or next_line.startswith("Shareholding"):
+                    break
+
+                # Append current line to buffer
+                buffer += " " + next_line
+                j += 1
+
+            # Extract shareholding number
+            shareholding_number_match = re.search(r"Shareholding\s+(\d+):", buffer)
+            shareholding_number = shareholding_number_match.group(1) if shareholding_number_match else "Unknown"
+
+            # Extract the total shares and type of shares
+            total_shares_match = re.search(r"(\d+)\s+([A-Za-z\s]+)\s+shares\s+held", buffer, re.IGNORECASE)
+            if total_shares_match:
+                amount_of_shares = int(total_shares_match.group(1))
+                type_of_shares = total_shares_match.group(2).strip().title()
+                # Add to share totals
+                share_totals[type_of_shares] += amount_of_shares
+            else:
+                amount_of_shares = "Unknown"
+                type_of_shares = "Unknown"
+
+            # Extract shareholder name
+            shareholder_name = ""
+            if j < len(lines) and lines[j].strip().startswith("Name:"):
+                shareholder_name = lines[j].strip().split(":")[1].strip()
+
+            # Append extracted data
+            shareholder_data.append([
+                shareholding_number, amount_of_shares, type_of_shares, shareholder_name or "PENDING"
+            ])
+
+            # Move to the next unprocessed line
+            i = j
+        else:
+            i += 1
+
+    # Add calculated totals for each share type to the CSV
+    csv_data.append(["Type of Shares", "Total Number of Shares"])
+    for share_type, total in share_totals.items():
+        csv_data.append([share_type, total])
+
+    # Add a blank row to separate shareholding data
+    csv_data.append([])
+
+    # Append shareholder headers and data
+    shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
+    csv_data.append(shareholder_headers)
+    csv_data.extend(shareholder_data)
+
+    # Create CSV buffer
     csv_buffer = StringIO()
     writer = csv.writer(csv_buffer)
-    # Add processed rows to csv_buffer (Your logic goes here)
+    writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 def main():
     st.title("Company Confirmation Statement Downloader")
