@@ -55,24 +55,6 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
-import streamlit as st
-import csv
-import re
-from io import StringIO, BytesIO
-from PyPDF2 import PdfReader
-import requests
-import base64
-
-# Constants
-API_BASE_URL = "https://api.company-information.service.gov.uk"
-PDF_DOWNLOAD_URL = "https://find-and-update.company-information.service.gov.uk"
-
-def extract_text_from_pdf(pdf_content):
-    """Extract text from a PDF file."""
-    pdf_reader = PdfReader(BytesIO(pdf_content))
-    text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
-    return text_content
-
 def process_text_to_csv(text_content, legal_name, company_number, statement_number):
     """Process text content to generate a CSV for an individual statement."""
     lines = text_content.split("\n")
@@ -104,19 +86,17 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             i += 1
 
             # Safeguard to avoid going out of bounds
-            while i < len(lines) and not lines[i].strip().startswith("Currency: GBPNumber allotted"):
+            while i < len(lines) and not re.search(r"Currency:\s*(\w+)?Number allotted|Number allotted", lines[i].strip()):
                 class_name += f" {lines[i].strip()}"
                 i += 1
 
-            # Extract number allotted if the line is valid
+            # Extract number allotted and currency
             if i < len(lines):
-                line = lines[i].strip()
-                if "Currency: GBPNumber allotted" in line:
-                    try:
-                        number_allotted = int(line.split("Currency: GBPNumber allotted")[1].strip().split()[0])
-                        class_share_data.append([class_name.strip(), number_allotted])
-                    except (IndexError, ValueError):
-                        class_share_data.append([class_name.strip(), "Unknown"])
+                match = re.search(r"(Currency:\s*(\w+))?\s*Number allotted\s*(\d+)", lines[i].strip())
+                if match:
+                    currency = match.group(2) if match.group(2) else "Unknown"
+                    number_allotted = match.group(3)
+                    class_share_data.append([class_name.strip(), currency, number_allotted])
 
         # Detect shareholding line
         if line.startswith("Shareholding"):
@@ -165,13 +145,11 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             i += 1
 
     # Add class share data to the CSV
-    if class_share_data:
-        csv_data.append(["Class of Shares", "Total Shares Allotted"])
-        csv_data.extend(class_share_data)
+    csv_data.append(["Class of Shares", "Currency", "Number Allotted"])
+    csv_data.extend(class_share_data)
 
     # Add a blank row to separate shareholding data
-    if shareholder_data:
-        csv_data.append([])
+    csv_data.append([])
 
     # Append shareholder headers and data
     shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
@@ -184,11 +162,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
-
-
-
-
-
 
 def main():
     st.title("Company Confirmation Statement Downloader")
@@ -253,8 +226,6 @@ def main():
             st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
 
-
-
     # Add download buttons
     for pdf_name, pdf_content in st.session_state.pdf_files:
         st.download_button(label=f"Download {pdf_name}", data=pdf_content, file_name=pdf_name, mime="application/pdf")
@@ -268,4 +239,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
