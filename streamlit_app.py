@@ -151,13 +151,14 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     return csv_buffer, statement_date
 
 
-
 def main():
     st.title("Company Confirmation Statement Downloader")
 
     # Initialize session state
     if "pdf_files" not in st.session_state:
         st.session_state.pdf_files = []
+    if "text_files" not in st.session_state:
+        st.session_state.text_files = []
     if "csv_files" not in st.session_state:
         st.session_state.csv_files = []
     if "consolidated_csv" not in st.session_state:
@@ -186,6 +187,7 @@ def main():
 
         # Reset session state
         st.session_state.pdf_files = []
+        st.session_state.text_files = []
         st.session_state.csv_files = []
         csv_buffers = []
 
@@ -195,63 +197,33 @@ def main():
             if not pdf_content:
                 continue
 
-            # Extract text from PDF
-            text_content = extract_text_from_pdf(pdf_content)
+            # File names
+            pdf_name = f"{legal_name}_statement_{idx + 1}.pdf"
+            txt_name = f"{legal_name}_statement_{idx + 1}.txt"
+            csv_name = f"{legal_name}_statement_{idx + 1}.csv"
 
-            # Generate statement date (dummy date for this example)
-            statement_date = "2024-01-01"  # Replace this with your actual statement date extraction logic
-
-            # Rename files using "Company Legal Name - Type of Document - Statement Date"
-            pdf_name = f"{legal_name} - PDF - {statement_date}.pdf"
-            csv_name = f"{legal_name} - CSV - {statement_date}.csv"
-
-            # Store PDFs and process CSV
+            # Store PDFs and text files
             st.session_state.pdf_files.append((pdf_name, pdf_content))
+            text_content = extract_text_from_pdf(pdf_content)
+            st.session_state.text_files.append((txt_name, text_content))
+
+            # Process text into CSV format
             csv_buffer, _ = process_text_to_csv(
-                text_content, legal_name, company_number, statement_date
+                text_content, legal_name, company_number, idx + 1
             )
             st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
 
-        # Consolidate CSVs into a single file
-        consolidated_csv = StringIO()
-        writer = csv.writer(consolidated_csv)
-        for buffer in csv_buffers:
-            buffer.seek(0)
-            writer.writerows(csv.reader(buffer))
-        consolidated_csv.seek(0)
-        st.session_state.consolidated_csv = consolidated_csv.getvalue()
+    # Add download buttons
+    for pdf_name, pdf_content in st.session_state.pdf_files:
+        st.download_button(label=f"Download {pdf_name}", data=pdf_content, file_name=pdf_name, mime="application/pdf")
 
-    # Add download buttons with unique file names and keys
-    for idx, (pdf_name, pdf_content) in enumerate(st.session_state.pdf_files):
-        st.download_button(
-            label=f"Download {pdf_name}",
-            data=pdf_content,
-            file_name=pdf_name,
-            mime="application/pdf",
-            key=f"pdf_download_{idx}"  # Unique key
-        )
+    for txt_name, txt_content in st.session_state.text_files:
+        st.download_button(label=f"Download {txt_name}", data=txt_content, file_name=txt_name, mime="text/plain")
 
-    for idx, (csv_name, csv_content) in enumerate(st.session_state.csv_files):
-        st.download_button(
-            label=f"Download {csv_name}",
-            data=csv_content,
-            file_name=csv_name,
-            mime="text/csv",
-            key=f"csv_download_{idx}"  # Unique key
-        )
-
-    if st.session_state.consolidated_csv:
-        consolidated_csv_name = f"{legal_name} - Consolidated CSV - {statement_date}.csv"
-        st.download_button(
-            label="Download Consolidated CSV",
-            data=st.session_state.consolidated_csv,
-            file_name=consolidated_csv_name,
-            mime="text/csv",
-            key="consolidated_csv_download"  # Unique key
-        )
+    for csv_name, csv_content in st.session_state.csv_files:
+        st.download_button(label=f"Download {csv_name}", data=csv_content, file_name=csv_name, mime="text/csv")
 
 
 if __name__ == "__main__":
     main()
-
