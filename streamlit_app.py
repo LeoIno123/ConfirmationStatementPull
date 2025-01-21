@@ -201,8 +201,8 @@ def main():
             )
 
             # Generate file names with dynamic `statement_date`
-            pdf_name = f"{legal_name}_statement_{idx + 1}_{statement_date}.pdf"
-            csv_name = f"{legal_name}_statement_{idx + 1}_{statement_date}.csv"
+            pdf_name = f"{legal_name}_pdf_{statement_date}.pdf"
+            csv_name = f"{legal_name}_csv_{statement_date}.csv"
 
             # Store PDFs and CSVs in session state
             st.session_state.pdf_files.append((pdf_name, pdf_content))
