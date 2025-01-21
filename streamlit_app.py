@@ -157,8 +157,6 @@ def main():
     # Initialize session state
     if "pdf_files" not in st.session_state:
         st.session_state.pdf_files = []
-    if "text_files" not in st.session_state:
-        st.session_state.text_files = []
     if "csv_files" not in st.session_state:
         st.session_state.csv_files = []
     if "consolidated_csv" not in st.session_state:
@@ -187,7 +185,6 @@ def main():
 
         # Reset session state
         st.session_state.pdf_files = []
-        st.session_state.text_files = []
         st.session_state.csv_files = []
         csv_buffers = []
 
@@ -197,49 +194,39 @@ def main():
             if not pdf_content:
                 continue
 
-            # File names
+            # Extract statement_date and process the text
+            text_content = extract_text_from_pdf(pdf_content)
+            csv_buffer, statement_date = process_text_to_csv(
+                text_content, legal_name, company_number, idx + 1
+            )
+
+            # Generate file names with dynamic `statement_date`
             pdf_name = f"{legal_name}_statement_{idx + 1}_{statement_date}.pdf"
             csv_name = f"{legal_name}_statement_{idx + 1}_{statement_date}.csv"
 
-            # Store PDFs and text files
+            # Store PDFs and CSVs in session state
             st.session_state.pdf_files.append((pdf_name, pdf_content))
-            text_content = extract_text_from_pdf(pdf_content)
-            st.session_state.text_files.append((txt_name, text_content))
-
-            # Process text into CSV format
-            csv_buffer, _ = process_text_to_csv(
-                text_content, legal_name, company_number, idx + 1
-            )
             st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
 
-# Add download buttons
-for idx, (pdf_name, pdf_content) in enumerate(st.session_state.pdf_files):
-    # Generate unique file name for PDF
-    statement_date = "2025-01-22"  # Replace with the actual statement_date variable
-    legal_name = "ExampleCompany"  # Replace with the actual legal_name variable
-    unique_pdf_name = f"{legal_name}_statement_{idx + 1}_{statement_date}.pdf"
-    st.download_button(
-        label=f"Download {unique_pdf_name}",
-        data=pdf_content,
-        file_name=unique_pdf_name,
-        mime="application/pdf",
-        key=f"pdf_download_{idx}"
-    )
+    # Add download buttons for PDF and CSV files
+    for idx, (pdf_name, pdf_content) in enumerate(st.session_state.pdf_files):
+        st.download_button(
+            label=f"Download {pdf_name}",
+            data=pdf_content,
+            file_name=pdf_name,
+            mime="application/pdf",
+            key=f"pdf_download_{idx}"
+        )
 
-for idx, (csv_name, csv_content) in enumerate(st.session_state.csv_files):
-    # Generate unique file name for CSV
-    statement_date = "2025-01-22"  # Replace with the actual statement_date variable
-    legal_name = "ExampleCompany"  # Replace with the actual legal_name variable
-    unique_csv_name = f"{legal_name}_statement_{idx + 1}_{statement_date}.csv"
-    st.download_button(
-        label=f"Download {unique_csv_name}",
-        data=csv_content,
-        file_name=unique_csv_name,
-        mime="text/csv",
-        key=f"csv_download_{idx}"
-    )
-
+    for idx, (csv_name, csv_content) in enumerate(st.session_state.csv_files):
+        st.download_button(
+            label=f"Download {csv_name}",
+            data=csv_content,
+            file_name=csv_name,
+            mime="text/csv",
+            key=f"csv_download_{idx}"
+        )
 
 if __name__ == "__main__":
     main()
