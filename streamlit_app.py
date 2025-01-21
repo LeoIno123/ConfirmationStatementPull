@@ -98,6 +98,22 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             statement_date = line.split(":")[1].strip()
             csv_data[2][1] = statement_date  # Update the statement date
 
+        # Extract class of shares and total number allotted
+        if line.startswith("Class of Shares:"):
+            class_name = line.split("Class of Shares:")[1].strip()
+            i += 1
+
+            # Handle multi-line class names
+            while not lines[i].strip().startswith("Currency: GBPNumber allotted"):
+                class_name += f" {lines[i].strip()}"
+                i += 1
+
+            # Extract number allotted
+            line = lines[i].strip()
+            if "Currency: GBPNumber allotted" in line:
+                number_allotted = line.split("Currency: GBPNumber allotted")[1].strip().split()[0]
+                class_share_data.append([class_name.strip(), number_allotted])
+
         # Detect shareholding line
         if line.startswith("Shareholding"):
             # Initialize buffer to collect multi-line details
@@ -143,7 +159,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             i = j
         else:
             i += 1
-            
+
     # Add class share data to the CSV
     csv_data.append(["Class of Shares", "Total Shares Allotted"])
     csv_data.extend(class_share_data)
@@ -162,7 +178,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
-
 
 
 
