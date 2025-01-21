@@ -151,12 +151,8 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
             # Extract shareholder name
             shareholder_name = ""
-            while j < len(lines):
-                next_line = lines[j].strip()
-                if next_line.startswith("Name:"):
-                    shareholder_name = next_line.split(":")[1].strip()
-                    break
-                j += 1
+            if j < len(lines) and lines[j].strip().startswith("Name:"):
+                shareholder_name = lines[j].strip().split(":")[1].strip()
 
             # Append extracted data
             shareholder_data.append([
@@ -188,6 +184,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 
