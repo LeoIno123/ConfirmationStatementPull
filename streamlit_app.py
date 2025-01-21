@@ -55,6 +55,8 @@ def extract_text_from_pdf(pdf_content):
     text_content = "\n".join(page.extract_text() for page in pdf_reader.pages)
     return text_content
 
+from collections import defaultdict
+
 def process_text_to_csv(text_content, legal_name, company_number, statement_number):
     """Process text content to generate a CSV for an individual statement."""
     lines = text_content.split("\n")
@@ -68,8 +70,8 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     ]
 
     statement_date = ""
-    class_share_data = []  # To store class of shares and total shares allotted
     shareholder_data = []  # To collect rows of shareholder information
+    share_totals = defaultdict(int)  # To aggregate total shares by type
 
     i = 0
     while i < len(lines):
@@ -79,28 +81,6 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
         if line.startswith("Statement date:"):
             statement_date = line.split(":")[1].strip()
             csv_data[2][1] = statement_date  # Update the statement date
-
-        # Extract class of shares and total number allotted
-        if line.startswith("Class of Shares:"):
-            class_name = line.split("Class of Shares:")[1].strip()
-            i += 1
-
-            # Safeguard to avoid going out of bounds
-            while i < len(lines) and not re.search(r"Currency:\s*(\w+)?Number allotted|Number allotted", lines[i].strip()):
-                class_name += f" {lines[i].strip()}"
-                i += 1
-
-            # Extract number allotted and currency
-            if i < len(lines):
-                line = lines[i].strip()
-                # Fix squished text like "Series BNumber"
-                line = re.sub(r"([A-Za-z])([Nn]umber allotted)", r"\1 Number allotted", line)
-
-                match = re.search(r"(Currency:\s*(\w+))?\s*Number allotted\s*(\d+)", line)
-                if match:
-                    currency = match.group(2) if match.group(2) else "Unknown"
-                    number_allotted = match.group(3)
-                    class_share_data.append([class_name.strip(), currency, number_allotted])
 
         # Detect shareholding line
         if line.startswith("Shareholding"):
@@ -127,8 +107,10 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             # Extract the total shares and type of shares
             total_shares_match = re.search(r"(\d+)\s+([A-Za-z\s]+)\s+shares\s+held", buffer, re.IGNORECASE)
             if total_shares_match:
-                amount_of_shares = total_shares_match.group(1)
+                amount_of_shares = int(total_shares_match.group(1))
                 type_of_shares = total_shares_match.group(2).strip().title()
+                # Add to share totals
+                share_totals[type_of_shares] += amount_of_shares
             else:
                 amount_of_shares = "Unknown"
                 type_of_shares = "Unknown"
@@ -148,9 +130,10 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
         else:
             i += 1
 
-    # Add class share data to the CSV
-    csv_data.append(["Class of Shares", "Currency", "Number Allotted"])
-    csv_data.extend(class_share_data)
+    # Add calculated totals for each share type to the CSV
+    csv_data.append(["Type of Shares", "Total Number of Shares"])
+    for share_type, total in share_totals.items():
+        csv_data.append([share_type, total])
 
     # Add a blank row to separate shareholding data
     csv_data.append([])
@@ -166,6 +149,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 def main():
