@@ -135,21 +135,23 @@ def main():
         consolidated_csv.seek(0)
         st.session_state.consolidated_csv = consolidated_csv.getvalue()
 
-    # Add download buttons with unique file names
-    for pdf_name, pdf_content in st.session_state.pdf_files:
+    # Add download buttons with unique file names and keys
+    for idx, (pdf_name, pdf_content) in enumerate(st.session_state.pdf_files):
         st.download_button(
             label=f"Download {pdf_name}",
             data=pdf_content,
             file_name=pdf_name,
-            mime="application/pdf"
+            mime="application/pdf",
+            key=f"pdf_download_{idx}"  # Unique key
         )
 
-    for csv_name, csv_content in st.session_state.csv_files:
+    for idx, (csv_name, csv_content) in enumerate(st.session_state.csv_files):
         st.download_button(
             label=f"Download {csv_name}",
             data=csv_content,
             file_name=csv_name,
-            mime="text/csv"
+            mime="text/csv",
+            key=f"csv_download_{idx}"  # Unique key
         )
 
     if st.session_state.consolidated_csv:
@@ -158,7 +160,8 @@ def main():
             label="Download Consolidated CSV",
             data=st.session_state.consolidated_csv,
             file_name=consolidated_csv_name,
-            mime="text/csv"
+            mime="text/csv",
+            key="consolidated_csv_download"  # Unique key
         )
 
 
