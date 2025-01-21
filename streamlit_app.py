@@ -92,7 +92,11 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
             # Extract number allotted and currency
             if i < len(lines):
-                match = re.search(r"(Currency:\s*(\w+))?\s*Number allotted\s*(\d+)", lines[i].strip())
+                line = lines[i].strip()
+                # Fix squished text like "Series BNumber"
+                line = re.sub(r"([A-Za-z])([Nn]umber allotted)", r"\1 Number allotted", line)
+
+                match = re.search(r"(Currency:\s*(\w+))?\s*Number allotted\s*(\d+)", line)
                 if match:
                     currency = match.group(2) if match.group(2) else "Unknown"
                     number_allotted = match.group(3)
@@ -162,6 +166,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 def main():
     st.title("Company Confirmation Statement Downloader")
