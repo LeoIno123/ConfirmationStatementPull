@@ -86,7 +86,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     ]
 
     statement_date = ""
-    class_share_data = [] # To store class of shares and total shares allotted
+    class_share_data = []  # To store class of shares and total shares allotted
     shareholder_data = []  # To collect rows of shareholder information
 
     i = 0
@@ -151,8 +151,12 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
 
             # Extract shareholder name
             shareholder_name = ""
-            if j < len(lines) and lines[j].strip().startswith("Name:"):
-                shareholder_name = lines[j].strip().split(":")[1].strip()
+            while j < len(lines):
+                next_line = lines[j].strip()
+                if next_line.startswith("Name:"):
+                    shareholder_name = next_line.split(":")[1].strip()
+                    break
+                j += 1
 
             # Append extracted data
             shareholder_data.append([
@@ -165,11 +169,13 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             i += 1
 
     # Add class share data to the CSV
-    for class_name, number_allotted in class_share_data:
-        csv_data.append([class_name, number_allotted])
+    if class_share_data:
+        csv_data.append(["Class of Shares", "Total Shares Allotted"])
+        csv_data.extend(class_share_data)
 
     # Add a blank row to separate shareholding data
-    csv_data.append([])
+    if shareholder_data:
+        csv_data.append([])
 
     # Append shareholder headers and data
     shareholder_headers = ["Shareholding #", "Amount of Shares", "Type of Shares", "Shareholder Name"]
@@ -182,6 +188,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
     writer.writerows(csv_data)
     csv_buffer.seek(0)
     return csv_buffer, statement_date
+
 
 
 def main():
