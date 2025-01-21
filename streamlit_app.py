@@ -114,15 +114,16 @@ def main():
             # Generate statement date (dummy date for this example)
             statement_date = "2024-01-01"  # Replace this with your actual statement date extraction logic
 
-            # Rename files using "Company Legal Name - Statement Date"
-            file_name_prefix = f"{legal_name} - {statement_date}"
+            # Rename files using "Company Legal Name - Type of Document - Statement Date"
+            pdf_name = f"{legal_name} - PDF - {statement_date}.pdf"
+            csv_name = f"{legal_name} - CSV - {statement_date}.csv"
 
             # Store PDFs and process CSV
-            st.session_state.pdf_files.append((f"{file_name_prefix}.pdf", pdf_content))
+            st.session_state.pdf_files.append((pdf_name, pdf_content))
             csv_buffer, _ = process_text_to_csv(
                 text_content, legal_name, company_number, statement_date
             )
-            st.session_state.csv_files.append((f"{file_name_prefix}.csv", csv_buffer.getvalue()))
+            st.session_state.csv_files.append((csv_name, csv_buffer.getvalue()))
             csv_buffers.append(csv_buffer)
 
         # Consolidate CSVs into a single file
@@ -134,20 +135,33 @@ def main():
         consolidated_csv.seek(0)
         st.session_state.consolidated_csv = consolidated_csv.getvalue()
 
-    # Add download buttons
+    # Add download buttons with unique file names
     for pdf_name, pdf_content in st.session_state.pdf_files:
-        st.download_button(label=f"Download {pdf_name}", data=pdf_content, file_name=pdf_name, mime="application/pdf")
+        st.download_button(
+            label=f"Download {pdf_name}",
+            data=pdf_content,
+            file_name=pdf_name,
+            mime="application/pdf"
+        )
 
     for csv_name, csv_content in st.session_state.csv_files:
-        st.download_button(label=f"Download {csv_name}", data=csv_content, file_name=csv_name, mime="text/csv")
-
-    if st.session_state.consolidated_csv:
         st.download_button(
-            label="Download Consolidated CSV",
-            data=st.session_state.consolidated_csv,
-            file_name=f"{legal_name} - Consolidated.csv",
+            label=f"Download {csv_name}",
+            data=csv_content,
+            file_name=csv_name,
             mime="text/csv"
         )
 
+    if st.session_state.consolidated_csv:
+        consolidated_csv_name = f"{legal_name} - Consolidated CSV - {statement_date}.csv"
+        st.download_button(
+            label="Download Consolidated CSV",
+            data=st.session_state.consolidated_csv,
+            file_name=consolidated_csv_name,
+            mime="text/csv"
+        )
+
+
 if __name__ == "__main__":
     main()
+
