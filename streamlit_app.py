@@ -105,7 +105,7 @@ def process_text_to_csv(text_content, legal_name, company_number, statement_numb
             shareholding_number = shareholding_number_match.group(1) if shareholding_number_match else "Unknown"
 
             # Extract the total shares and type of shares
-            total_shares_match = re.search(r"(\d+)\s+([A-Za-z\s]+)\s+shares\s+held", buffer, re.IGNORECASE)
+            total_shares_match = re.search(r"(\d{1,3}(?:,\d{3})*|\d+)\s+([A-Za-z0-9\s]+?)\s+shares\s+held", buffer, re.IGNORECASE)
             if total_shares_match:
                 amount_of_shares = int(total_shares_match.group(1))
                 type_of_shares = total_shares_match.group(2).strip().title()
